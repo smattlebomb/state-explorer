@@ -169,8 +169,8 @@ J. **Screen tests use jsdom plus React's `act`**, with a ~60-line helper (`src/t
 
 ## Known limitations
 
-- **Offline on the iPad needs HTTPS.** iPadOS won't register a service worker for `http://<LAN-IP>`. Over `npm run preview -- --host` the app works while the Mac serves it, but not offline.
-- I haven't tested on a real device (see above).
+- **Hosted on GitHub Pages (2026-11-13):** https://smattlebomb.github.io/state-explorer/ — HTTPS, public repo `smattlebomb/state-explorer`, deployed with GitHub Actions (`actions/deploy-pages`). Verified: `/` returns 200, JS/CSS/manifest/icons load, and the service worker is registered at scope `/state-explorer/` (`sw.js` controlling the page). The Vite `base` is `/state-explorer/` only when `VITE_BASE_PATH` is set (CI); local `npm run dev` / `npm run preview` stay at `/`.
+- **Offline on the iPad:** works on the GitHub Pages HTTPS URL (Add to Home Screen in Safari). The LAN preview (`http://192.168.4.26:4173` or Tailscale) still will not cache offline, because iPadOS will not register a service worker over plain HTTP.
 - **Learn with keep-names ON can get crowded** in the Northeast and around the Chesapeake when many names build up. Labels may overlap a little (the state she's on is always drawn on top). The callout boxes help for the 8 tiniest states. Clear names is the escape hatch.
 - **The Find It top bar is busy:** Home, Ollie, the prompt, counter/combo, the "i" button and 🔊. In portrait, long prompts like "Tap North Carolina!" may wrap onto two lines. It still fits, but it's the first thing to check on the iPad.
 - Confetti is drawn on a full-screen canvas. On older iPads, a 🚀 combo plus a ✓ burst at the same moment may stutter briefly.
@@ -185,7 +185,7 @@ J. **Screen tests use jsdom plus React's `act`**, with a ~60-line helper (`src/t
 - **Hands-on checklist:**
   - **New:** on Home, tap a chip in "Pick a different region" (for example 🌽 Midwest). It should start Find It there right away. Check the chip row fits nicely in portrait (3 across) and landscape (6 across).
   - **New:** in Learn, turn on "Keep names on the map", tap 10 or so neighboring states (try the Northeast), and check the names stay readable where they crowd together. Then use Clear names, and run a Region tour with it on.
-  - **New:** decide whether Learn with the setting OFF should *fade* the name after about 2.5 s (decision A).
+  - **Done:** Learn with Keep names OFF keeps the name until she taps another state (Matt chose this on 2026-11-13).
   - Play a Quiz and a Practice round of each mode, in portrait and landscape.
   - Check that the green ✓ stands out on Southeast states with region colors on.
   - Get 5 in a row to see the 🚀 celebration.
@@ -193,7 +193,7 @@ J. **Screen tests use jsdom plus React's `act`**, with a ~60-line helper (`src/t
   - Toggle each setting and check it sticks after relaunching.
   - Check the names fit in the callout boxes ("Massachusetts").
   - Repeat the earlier checks: tiny-state callouts, long-press reset, Add to Home Screen.
-- **True offline install:** put `dist/` on any HTTPS static host (you'd choose and approve it; I didn't deploy anything). Or use `mkcert` with its root certificate on the iPad, plus `vite preview --https`.
+- **True offline install:** done 2026-11-13 — https://smattlebomb.github.io/state-explorer/
 - Sticker or badge rewards per region, such as a region's outline filling in once all its states are mastered.
 - Ollie hats and costumes unlocked with stars.
 - A third, region-aware hint for region rounds, such as shading the target's neighbors.
