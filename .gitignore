@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.grokbot/
+dev-dist/
+.preview/
+.tools/
+*.local
+.DS_Store
