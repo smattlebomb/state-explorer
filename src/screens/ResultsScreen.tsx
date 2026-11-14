@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import type { SavedData } from '../lib/storage';
 import { COMBO_SMALL, type QuizMode, type RoundSummary } from '../lib/quiz';
+import { USMap } from '../components/USMap';
 import { displayStreak, toDayKey } from '../lib/streak';
 import { getRegion, type Region } from '../data/regions';
 import { stateName } from '../data/states';
@@ -47,14 +48,14 @@ function FlyingStars({ count }: { count: number }) {
   );
 }
 
-function Buttons({ onAgain, onOtherRegion, onHome }: Pick<Props, 'onAgain' | 'onOtherRegion' | 'onHome'>) {
+function Buttons({ onAgain, onOtherRegion, onHome, otherLabel = '🗺️ Other states' }: Pick<Props, 'onAgain' | 'onOtherRegion' | 'onHome'> & { otherLabel?: string }) {
   return (
     <div className="mt-2 flex flex-wrap justify-center gap-4">
       <BigButton variant="success" className="min-h-20 min-w-64 text-4xl" onClick={onAgain}>
         Play again ➜
       </BigButton>
       <BigButton variant="secondary" onClick={onOtherRegion}>
-        🗺️ Other states
+        {otherLabel}
       </BigButton>
       <BigButton variant="secondary" onClick={onHome}>
         🏠 Home
@@ -92,6 +93,11 @@ export function ResultsScreen({ mode, regionId, summary, data, onHome, onAgain, 
 
   useEffect(() => {
     soundFanfare();
+    if (summary.test) {
+      const pct = summary.total === 0 ? 0 : Math.round(summary.accuracy * 100);
+      speak(summary.completed ? `Test finished! You got ${summary.firstTry} out of ${summary.total}, ${pct} percent.` : `You stopped the test. You got ${summary.firstTry} out of ${summary.total}.`);
+      return;
+    }
     if (practice) {
       speak('Practice finished! Great work!');
       return;
@@ -106,9 +112,70 @@ export function ResultsScreen({ mode, regionId, summary, data, onHome, onAgain, 
 
   const header = (
     <div className="text-xl font-bold text-slate-500">
-      {mode === 'find' ? '👆 Find It' : '🔤 Name It'} · {practice ? '🎈 Practice' : '🏆 Quiz'} · {region.emoji} {region.label}
+      {mode === 'find' ? '👆 Find It' : '🔤 Name It'} · {summary.test ? '📝 Test' : practice ? '🎈 Practice' : '🏆 Quiz'} · {region.emoji} {region.label}
     </div>
   );
+
+  if (summary.test) {
+    const pct = summary.total === 0 ? 0 : Math.round(summary.accuracy * 100);
+    const byState = new Map(summary.answers.map((a) => [a.state, a.correct]));
+    const best = data.bestTests[mode];
+    const isNewBest = summary.completed && best && best.correct === summary.firstTry;
+    const fillFor = (id: string) => {
+      const ok = byState.get(id);
+      if (ok === true) return '#4ade80';
+      if (ok === false) return '#f87171';
+      return '#e2e8f0';
+    };
+    return (
+      <main className="flex h-full flex-col overflow-y-auto p-4 text-center">
+        {header}
+        <Mascot mood={pct >= 80 ? 'celebrate' : pct >= 50 ? 'happy' : 'idle'} size={110} />
+        <h1 className="text-5xl font-black text-sky-700 sm:text-6xl">
+          {summary.firstTry}/{summary.total} ({pct}%)
+        </h1>
+        {!summary.completed && (
+          <p className="text-2xl font-bold text-slate-600">You stopped after {summary.total} of 50 states.</p>
+        )}
+        {summary.completed && isNewBest && <p className="text-2xl font-extrabold text-green-700">🎉 New best score!</p>}
+        {summary.completed && best && !isNewBest && (
+          <p className="text-xl font-bold text-slate-500">Your best is {best.correct}/{best.total} ({Math.round((best.correct / best.total) * 100)}%)</p>
+        )}
+        <div className="mx-auto h-[42vh] w-full max-w-5xl shrink-0">
+          <USMap fillFor={fillFor} labels={[]} />
+        </div>
+        <p className="text-lg font-bold text-slate-500">Green = correct · Red = missed{!summary.completed ? ' · Gray = not asked' : ''}</p>
+        {summary.misses.length > 0 && (
+          <div className="mx-auto mt-3 w-full max-w-3xl rounded-3xl bg-white/80 px-5 py-4 text-left">
+            <div className="text-center text-2xl font-black text-slate-700">Misses</div>
+            <ul className="mt-3 space-y-2">
+              {summary.misses.map((m) => (
+                <li key={m.state} className="rounded-2xl bg-rose-50 px-4 py-2 text-xl font-bold text-slate-800">
+                  <span className="font-black">{stateName(m.state)}</span>
+                  {m.picked ? (
+                    <>
+                      {' '}
+                      — you picked <span className="text-rose-700">{stateName(m.picked)}</span>
+                    </>
+                  ) : (
+                    ' — skipped'
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="py-4">
+          <Buttons
+            onAgain={onAgain}
+            onOtherRegion={onOtherRegion}
+            onHome={onHome}
+            otherLabel="📝 Other test"
+          />
+        </div>
+      </main>
+    );
+  }
 
   if (practice) {
     // No score, no stars, no grade, just a friendly wrap-up.

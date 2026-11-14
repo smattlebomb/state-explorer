@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, emptyData, parseData, withAnswer, withExplored, withPracticeAnswer, withReset, withRoundFinished, withSetting } from './storage';
+import { DEFAULT_SETTINGS, emptyData, parseData, withAnswer, withExplored, withPracticeAnswer, withReset, withRoundFinished, withSetting, withTestScore } from './storage';
 import { masteryOf } from './srs';
 
 describe('storage', () => {
@@ -93,5 +93,29 @@ describe('storage', () => {
   it('a first-try practice answer with nothing to clear leaves data unchanged', () => {
     const d = emptyData();
     expect(withPracticeAnswer(d, 'OH', true, 1)).toBe(d);
+  });
+
+  it('older saves without bestTests get empty test scores', () => {
+    const old = JSON.stringify({ version: 1, records: {}, explored: [], settings: {}, totalStars: 4 });
+    expect(parseData(old).bestTests).toEqual({ find: null, name: null });
+    expect(parseData(old).totalStars).toBe(4);
+  });
+
+  it('withTestScore keeps the best completed 50-state score per mode and ignores partial tests', () => {
+    let d = emptyData();
+    expect(withTestScore(d, 'find', 8, 12)).toBe(d); // quit early
+    d = withTestScore(d, 'find', 40, 50);
+    expect(d.bestTests.find).toEqual({ correct: 40, total: 50 });
+    const same = withTestScore(d, 'find', 40, 50);
+    expect(same).toBe(d);
+    const worse = withTestScore(d, 'find', 10, 50);
+    expect(worse).toBe(d);
+    d = withTestScore(d, 'find', 45, 50);
+    expect(d.bestTests.find).toEqual({ correct: 45, total: 50 });
+    d = withTestScore(d, 'name', 30, 50);
+    expect(d.bestTests).toEqual({ find: { correct: 45, total: 50 }, name: { correct: 30, total: 50 } });
+    const r = withReset(d);
+    expect(r.bestTests).toEqual({ find: null, name: null });
+    expect(r.settings).toEqual(d.settings);
   });
 });

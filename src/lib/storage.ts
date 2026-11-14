@@ -1,4 +1,5 @@
 import { recordAnswer, recordPracticeAnswer, type AnswerKind, type RecordMap } from './srs';
+import type { QuizMode } from './quiz';
 import { EMPTY_STREAK, recordPractice, type StreakState } from './streak';
 
 export interface Settings {
@@ -27,6 +28,13 @@ export interface SavedData {
   totalStars: number;
   roundsPlayed: number;
   settings: Settings;
+  /** Best completed (50/50 questions) test scores, by mode. */
+  bestTests: { find: BestTestScore | null; name: BestTestScore | null };
+}
+
+export interface BestTestScore {
+  correct: number;
+  total: number;
 }
 
 export const STORAGE_KEY = 'state-explorer:v1';
@@ -40,6 +48,7 @@ export function emptyData(): SavedData {
     totalStars: 0,
     roundsPlayed: 0,
     settings: { ...DEFAULT_SETTINGS },
+    bestTests: { find: null, name: null },
   };
 }
 
@@ -72,6 +81,7 @@ export function parseData(raw: string | null): SavedData {
       totalStars: typeof d.totalStars === 'number' ? d.totalStars : 0,
       roundsPlayed: typeof d.roundsPlayed === 'number' ? d.roundsPlayed : 0,
       settings: parseSettings(d.settings),
+      bestTests: parseBestTests((d as { bestTests?: unknown }).bestTests),
     };
   } catch {
     return base;
@@ -127,4 +137,24 @@ export function withRoundFinished(data: SavedData, stars: number, today: string)
 /** Reset learning progress but keep settings (like the narration toggle). */
 export function withReset(data: SavedData): SavedData {
   return { ...emptyData(), settings: data.settings };
+}
+
+function parseBestTests(raw: unknown): SavedData['bestTests'] {
+  const one = (v: unknown): BestTestScore | null => {
+    if (!v || typeof v !== 'object') return null;
+    const { correct, total } = v as { correct?: unknown; total?: unknown };
+    if (typeof correct !== 'number' || typeof total !== 'number' || total <= 0 || correct < 0) return null;
+    return { correct, total };
+  };
+  if (!raw || typeof raw !== 'object') return { find: null, name: null };
+  const r = raw as { find?: unknown; name?: unknown };
+  return { find: one(r.find), name: one(r.name) };
+}
+
+/** Save a completed 50-state test if it beats the stored best for that mode. */
+export function withTestScore(data: SavedData, mode: QuizMode, correct: number, total: number): SavedData {
+  if (total !== 50) return data;
+  const prev = data.bestTests[mode];
+  if (prev && prev.correct >= correct) return data;
+  return { ...data, bestTests: { ...data.bestTests, [mode]: { correct, total } } };
 }

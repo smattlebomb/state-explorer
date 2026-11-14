@@ -5,6 +5,7 @@ import {
   COMBO_BIG,
   COMBO_SMALL,
   createRound,
+  TEST_ROUND_LENGTH,
   newlyMastered,
   reveal,
   currentQuestion,
@@ -86,7 +87,7 @@ describe('Find It flow', () => {
     const { round, outcome } = answer(r0, currentQuestion(r0)!.state);
     expect(outcome).toBe('correct');
     expect(round.status).toBe('correct');
-    expect(round.results).toEqual([{ state: r0.questions[0].state, triesUsed: 1, firstTry: true, hintsUsed: 0, mastery: 'correct', score: 1 }]);
+    expect(round.results).toEqual([{ state: r0.questions[0].state, triesUsed: 1, firstTry: true, hintsUsed: 0, mastery: 'correct', score: 1, picked: r0.questions[0].state }]);
   });
 
   it('allows 3 tries, then reveals the answer', () => {
@@ -376,7 +377,7 @@ describe('newlyMastered', () => {
       TX: { streak: 3, correct: 3, wrong: 0, lastSeen: 0 }, // already mastered
       CA: { streak: 1, correct: 1, wrong: 0, lastSeen: 0 },
     };
-    const res = (state: string, mastery: 'correct' | 'wrong' | 'assisted') => ({ state, triesUsed: 1, firstTry: mastery !== 'wrong', hintsUsed: 0, mastery, score: 1 });
+    const res = (state: string, mastery: 'correct' | 'wrong' | 'assisted') => ({ state, triesUsed: 1, firstTry: mastery !== 'wrong', hintsUsed: 0, mastery, score: 1, picked: state });
     expect(newlyMastered(before, [res('OH', 'correct'), res('TX', 'correct'), res('CA', 'correct')], NOW)).toEqual(['OH']);
     expect(newlyMastered(before, [res('OH', 'assisted')], NOW)).toEqual([]);
     expect(newlyMastered(before, [res('OH', 'wrong')], NOW)).toEqual([]);
@@ -400,5 +401,87 @@ describe('starsFor', () => {
     expect(starsFor(0.6)).toBe(2);
     expect(starsFor(0.59)).toBe(1);
     expect(starsFor(0)).toBe(1);
+  });
+});
+
+describe('test mode', () => {
+  const testRound = (mode: 'find' | 'name' = 'find', rng = seeded(101)) =>
+    createRound({ mode, pool: ALL_ABBRS, records: {}, now: NOW, rng, test: true });
+
+  it('asks all 50 states once, in shuffled order, with one try and no retries', () => {
+    const a = testRound('find', seeded(101));
+    const b = testRound('find', seeded(202));
+    expect(a.test).toBe(true);
+    expect(a.practice).toBe(false);
+    expect(a.maxTries).toBe(1);
+    expect(a.questions).toHaveLength(TEST_ROUND_LENGTH);
+    expect(new Set(a.questions.map((q) => q.state)).size).toBe(50);
+    expect(a.questions.every((q) => !q.retry)).toBe(true);
+    // Different seeds produce different orders.
+    expect(a.questions.map((q) => q.state).join()).not.toBe(b.questions.map((q) => q.state).join());
+  });
+
+  it('the first Find It tap is final, even when wrong, and records what she picked', () => {
+    let r = testRound('find');
+    const target = r.questions[0].state;
+    const wrong = ALL_ABBRS.find((s) => s !== target)!;
+    const { round, outcome } = answer(r, wrong);
+    expect(outcome).toBe('revealed');
+    expect(round.status).toBe('revealed');
+    expect(round.results[0]).toMatchObject({ state: target, picked: wrong, firstTry: false, score: 0, triesUsed: 1 });
+    expect(round.combo).toBe(0);
+    // A second tap is ignored.
+    expect(answer(round, target).outcome).toBe('ignored');
+    const next = nextQuestion(round);
+    expect(next.questions).toHaveLength(50); // no retry appended
+    expect(next.index).toBe(1);
+    expect(canTakeHint(round)).toBe(false);
+  });
+
+  it('the first Name It choice is final', () => {
+    let r = testRound('name');
+    const q = r.questions[0];
+    const wrong = q.options.find((s) => s !== q.state)!;
+    const { round, outcome } = answer(r, wrong);
+    expect(outcome).toBe('revealed');
+    expect(round.results[0]).toMatchObject({ picked: wrong, score: 0 });
+    expect(answer(round, q.state).outcome).toBe('ignored');
+  });
+
+  it('summarize reports score, misses with the picked answer, and no newly mastered states', () => {
+    let r = testRound('find', seeded(3));
+    const first = r.questions[0].state;
+    const second = r.questions[1].state;
+    const wrong = ALL_ABBRS.find((s) => s !== first)!;
+    r = answer(r, first).round;
+    r = nextQuestion(r);
+    r = answer(r, wrong).round;
+    r = nextQuestion(r);
+    const s = summarize(r);
+    expect(s.test).toBe(true);
+    expect(s.practice).toBe(false);
+    expect(s.completed).toBe(false);
+    expect(s.total).toBe(2);
+    expect(s.firstTry).toBe(1);
+    expect(s.accuracy).toBe(0.5);
+    expect(s.missed).toEqual([second]);
+    expect(s.misses).toEqual([{ state: second, picked: wrong }]);
+    expect(s.newlyMastered).toEqual([]);
+  });
+
+  it('a finished 50-state test is marked completed with x/50', () => {
+    let r = createRound({ mode: 'find', pool: ALL_ABBRS, records: {}, now: NOW, rng: seeded(7), test: true });
+    for (let i = 0; i < 50; i++) {
+      const q = r.questions[i];
+      r = answer(r, i % 5 === 0 ? ALL_ABBRS.find((s) => s !== q.state)! : q.state).round;
+      r = nextQuestion(r);
+    }
+    expect(r.finished).toBe(true);
+    const s = summarize(r);
+    expect(s.completed).toBe(true);
+    expect(s.total).toBe(50);
+    expect(s.firstTry).toBe(40);
+    expect(s.accuracy).toBe(0.8);
+    expect(s.misses).toHaveLength(10);
   });
 });

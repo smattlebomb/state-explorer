@@ -11,6 +11,7 @@ import { SetupScreen } from './screens/SetupScreen';
 import { LearnScreen } from './screens/LearnScreen';
 import { QuizScreen } from './screens/QuizScreen';
 import { ResultsScreen } from './screens/ResultsScreen';
+import { TestSetupScreen } from './screens/TestSetupScreen';
 import { ProgressScreen } from './screens/ProgressScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 
@@ -20,10 +21,17 @@ export type Screen =
   | { name: 'progress' }
   | { name: 'settings' }
   | { name: 'setup'; mode: QuizMode }
-  | { name: 'quiz'; mode: QuizMode; region: Region['id']; practice: boolean; game: number }
-  | { name: 'results'; mode: QuizMode; region: Region['id']; practice: boolean; summary: RoundSummary };
+  | { name: 'setup-test' }
+  | { name: 'quiz'; mode: QuizMode; region: Region['id']; practice: boolean; test?: boolean; game: number }
+  | { name: 'results'; mode: QuizMode; region: Region['id']; practice: boolean; test?: boolean; summary: RoundSummary };
 
 export type UpdateData = (fn: (d: SavedData) => SavedData) => void;
+
+function formatBest(score: SavedData['bestTests']['find']): string | null {
+  if (!score) return null;
+  const pct = Math.round((score.correct / score.total) * 100);
+  return `${score.correct}/${score.total} (${pct}%)`;
+}
 
 export default function App() {
   const [data, setData] = useState<SavedData>(loadData);
@@ -37,7 +45,8 @@ export default function App() {
   const go = useCallback((s: Screen) => setScreen(s), []);
   const home = useCallback(() => setScreen({ name: 'home' }), []);
 
-  const play = (mode: QuizMode, region: Region['id'], practice: boolean) => go({ name: 'quiz', mode, region, practice, game: Date.now() });
+  const play = (mode: QuizMode, region: Region['id'], practice: boolean, test = false) =>
+    go({ name: 'quiz', mode, region, practice: test ? false : practice, test, game: Date.now() });
 
   let content;
   switch (screen.name) {
@@ -65,6 +74,16 @@ export default function App() {
     case 'setup':
       content = <SetupScreen mode={screen.mode} data={data} update={update} onHome={home} onStart={(region, practice) => play(screen.mode, region, practice)} />;
       break;
+    case 'setup-test':
+      content = (
+        <TestSetupScreen
+          onHome={home}
+          onStart={(mode) => play(mode, 'all', false, true)}
+          bestFind={formatBest(data.bestTests.find)}
+          bestName={formatBest(data.bestTests.name)}
+        />
+      );
+      break;
     case 'quiz':
       content = (
         <QuizScreen
@@ -72,10 +91,11 @@ export default function App() {
           mode={screen.mode}
           regionId={screen.region}
           practice={screen.practice}
+          test={screen.test}
           data={data}
           update={update}
           onHome={home}
-          onFinish={(summary) => go({ name: 'results', mode: screen.mode, region: screen.region, practice: screen.practice, summary })}
+          onFinish={(summary) => go({ name: 'results', mode: screen.mode, region: screen.region, practice: screen.practice, test: screen.test, summary })}
         />
       );
       break;
@@ -87,8 +107,8 @@ export default function App() {
           summary={screen.summary}
           data={data}
           onHome={home}
-          onAgain={() => play(screen.mode, screen.region, screen.practice)}
-          onOtherRegion={() => go({ name: 'setup', mode: screen.mode })}
+          onAgain={() => play(screen.mode, screen.region, screen.practice, screen.test)}
+          onOtherRegion={() => go(screen.test ? { name: 'setup-test' } : { name: 'setup', mode: screen.mode })}
         />
       );
       break;

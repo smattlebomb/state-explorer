@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { UpdateData } from '../App';
-import { withAnswer, withPracticeAnswer, withRoundFinished, type SavedData } from '../lib/storage';
+import { withAnswer, withPracticeAnswer, withRoundFinished, withTestScore, type SavedData } from '../lib/storage';
 import {
   answer,
   canTakeHint,
@@ -22,7 +22,7 @@ import {
 import { toDayKey } from '../lib/streak';
 import { hintText } from '../lib/hints';
 import { getRegion, REGION_TINT, type Region } from '../data/regions';
-import { STATE_BY_ABBR, STATES, stateName } from '../data/states';
+import { ALL_ABBRS, STATE_BY_ABBR, STATES, stateName } from '../data/states';
 import { baseFill, USMap, type MapApi } from '../components/USMap';
 import { ShapeCard } from '../components/ShapeCard';
 import { Mascot, type MascotMood } from '../components/Mascot';
@@ -65,17 +65,29 @@ interface Props {
   mode: QuizMode;
   regionId: Region['id'];
   practice: boolean;
+  test?: boolean;
   data: SavedData;
   update: UpdateData;
   onHome: () => void;
   onFinish: (s: RoundSummary) => void;
 }
 
-export function QuizScreen({ mode, regionId, practice, data, update, onHome, onFinish }: Props) {
+export function QuizScreen({ mode, regionId, practice, test = false, data, update, onHome, onFinish }: Props) {
   const region = getRegion(regionId);
-  const { regionColors, keepNames, narration } = data.settings;
+  const { regionColors, keepNames: keepNamesSetting, narration } = data.settings;
+  const keepNames = keepNamesSetting && !test;
+  const [quitOpen, setQuitOpen] = useState(false);
   const recordsAtStart = useRef(data.records);
-  const [round, setRound] = useState<Round>(() => createRound({ mode, pool: region.states, records: data.records, now: Date.now(), practice }));
+  const [round, setRound] = useState<Round>(() =>
+    createRound({
+      mode,
+      pool: test ? ALL_ABBRS : region.states,
+      records: data.records,
+      now: Date.now(),
+      practice: test ? false : practice,
+      test,
+    }),
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [mood, setMood] = useState<{ mood: MascotMood; key: number }>({ mood: 'idle', key: 0 });
   const [fxKey, setFxKey] = useState(0);
@@ -135,23 +147,30 @@ export function QuizScreen({ mode, regionId, practice, data, update, onHome, onF
     return () => clearTimeout(t);
   }, [mood]);
 
-  // After a correct answer, move on automatically.
+  // After a correct answer, move on automatically. In a test, also advance after
+  // a wrong answer — the first pick is final and there's no "Next" button.
   useEffect(() => {
-    if (round.status !== 'correct') return;
-    const t = setTimeout(() => setRound((r) => nextQuestion(r)), CORRECT_DELAY_MS);
+    if (round.status !== 'correct' && !(test && round.status === 'revealed')) return;
+    const delay = test ? 700 : CORRECT_DELAY_MS;
+    const t = setTimeout(() => setRound((r) => nextQuestion(r)), delay);
     return () => clearTimeout(t);
-  }, [round.status, round.index]);
+  }, [round.status, round.index, test]);
 
-  // Round over → (Quiz only) save stars + streak, then show the end screen.
+  // Round over → save Quiz stars / a completed test best, then show the end screen.
   useEffect(() => {
     if (!round.finished || finishedRef.current) return;
     finishedRef.current = true;
     const summary = summarize(round, recordsAtStart.current, Date.now());
-    if (!practice) update((d) => withRoundFinished(d, summary.stars, toDayKey(new Date())));
+    if (test) {
+      if (summary.completed) update((d) => withTestScore(d, mode, summary.firstTry, summary.total));
+    } else if (!practice) {
+      update((d) => withRoundFinished(d, summary.stars, toDayKey(new Date())));
+    }
     onFinish(summary);
-  }, [round, update, onFinish, practice]);
+  }, [round, update, onFinish, practice, test, mode]);
 
   const persist = (next: Round) => {
+    if (test) return; // tests never change mastery, stars or streak
     const res = next.results[next.results.length - 1];
     if (!res) return;
     if (practice) update((d) => withPracticeAnswer(d, res.state, res.firstTry, Date.now()));
@@ -191,6 +210,11 @@ export function QuizScreen({ mode, regionId, practice, data, update, onHome, onF
     if (outcome === 'ignored') return;
     setRound(next);
     if ((outcome === 'correct' || outcome === 'revealed') && !q.retry) persist(next);
+
+    if (test) {
+      setMessage('Answer recorded');
+      return;
+    }
 
     if (outcome === 'correct') {
       celebrateCorrect(next);
@@ -257,14 +281,25 @@ export function QuizScreen({ mode, regionId, practice, data, update, onHome, onF
   };
 
   // Name It highlights the target until she gets it; Find It pulses it only when revealing the answer.
-  const pulse = mode === 'name' ? (round.status === 'correct' ? null : target) : round.status === 'revealed' ? target : null;
-  const circleHint = mode === 'find' && round.status === 'asking' && round.triesUsed >= 2 ? target : null;
+  // A test never reveals the answer on the map.
+  const pulse = test
+    ? mode === 'name' && !resolved
+      ? target
+      : null
+    : mode === 'name'
+      ? (round.status === 'correct' ? null : target)
+      : round.status === 'revealed'
+        ? target
+        : null;
+  const circleHint = !test && mode === 'find' && round.status === 'asking' && round.triesUsed >= 2 ? target : null;
   const lastWrong = round.wrongPicks[round.wrongPicks.length - 1];
-  const labels = [
-    ...(keepNames ? named : []),
-    ...(resolved ? [target] : []),
-    ...(mode === 'find' && lastWrong && round.status === 'asking' ? [lastWrong] : []),
-  ];
+  const labels = test
+    ? []
+    : [
+        ...(keepNames ? named : []),
+        ...(resolved ? [target] : []),
+        ...(mode === 'find' && lastWrong && round.status === 'asking' ? [lastWrong] : []),
+      ];
   const showMe = practice && round.status === 'asking' && round.triesUsed >= 1;
 
   if (!q) return <main className="h-full" />;
@@ -272,20 +307,31 @@ export function QuizScreen({ mode, regionId, practice, data, update, onHome, onF
   return (
     <main className="flex h-full flex-col">
       <TopBar
-        onHome={onHome}
+        onHome={test ? () => setQuitOpen(true) : onHome}
         right={
           <>
             <div className="hidden flex-col items-center gap-1 sm:flex">
               <span className="rounded-full bg-white/80 px-4 py-1 text-xl font-extrabold text-slate-600">
                 {prog.retry ? '🔁' : `${prog.number} / ${prog.total}`}
               </span>
-              {practice ? (
+              {test ? (
+                <span className="rounded-full bg-rose-100 px-3 text-base font-extrabold text-rose-700">📝 Test</span>
+              ) : practice ? (
                 <span className="rounded-full bg-sky-100 px-3 text-base font-extrabold text-sky-700">🎈 Practice</span>
               ) : (
                 <ComboBadge combo={round.combo} />
               )}
             </div>
-            {mode === 'find' && (
+            {test && (
+              <button
+                type="button"
+                onClick={() => setQuitOpen(true)}
+                className="min-h-16 rounded-3xl bg-white px-4 text-xl font-extrabold text-slate-800 shadow-[0_4px_0_#94a3b8] transition active:translate-y-1"
+              >
+                Stop
+              </button>
+            )}
+            {mode === 'find' && !test && (
               <button
                 type="button"
                 onClick={handleHint}
@@ -315,10 +361,12 @@ export function QuizScreen({ mode, regionId, practice, data, update, onHome, onF
           <Mascot key={mood.key} mood={mood.mood} size={68} />
           <div className="min-w-0 flex-1 text-center">
             <div className="text-lg font-bold text-slate-500">
-              {region.emoji} {region.label} {prog.retry && '· one more try'}
-              {mode === 'find' && !resolved && !practice && ` · ${'❤️'.repeat(Math.max(0, round.maxTries - round.triesUsed))}`}
+              {test ? '📝 Test · All 50' : `${region.emoji} ${region.label}`} {prog.retry && '· one more try'}{test && ` · ${prog.number} / ${prog.total}`}
+              {mode === 'find' && !resolved && !practice && !test && ` · ${'❤️'.repeat(Math.max(0, round.maxTries - round.triesUsed))}`}
             </div>
-            {mode === 'find' ? (
+            {test && resolved ? (
+              <div className="text-3xl font-black leading-tight text-slate-800 sm:text-4xl">Answer recorded</div>
+            ) : mode === 'find' ? (
               <>
                 {/* Find It keeps "Tap Ohio!" visible; feedback and hints go on a second line. */}
                 <div className={`text-3xl font-black leading-tight sm:text-4xl ${round.status === 'correct' ? 'text-green-600' : 'text-slate-900'}`}>
@@ -367,7 +415,7 @@ export function QuizScreen({ mode, regionId, practice, data, update, onHome, onF
           ))}
         </AnimatePresence>
 
-        {(round.status === 'revealed' || showMe) && (
+        {!test && (round.status === 'revealed' || showMe) && (
           <div className="absolute inset-x-0 bottom-3 flex justify-center">
             {round.status === 'revealed' ? (
               <BigButton variant="success" className="pop-in min-w-56 text-3xl" onClick={() => setRound((r) => nextQuestion(r))}>
@@ -412,6 +460,40 @@ export function QuizScreen({ mode, regionId, practice, data, update, onHome, onF
       <span className="sr-only" aria-live="polite">
         {message}
       </span>
+
+      {quitOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-6">
+          <div className="pop-in max-w-xl rounded-[2rem] bg-white p-8 text-center shadow-2xl">
+            <div className="text-5xl">📝</div>
+            <h2 className="mt-3 text-3xl font-black text-slate-800">Stop the test?</h2>
+            <p className="mt-2 text-2xl text-slate-600">
+              {round.results.length === 0
+                ? "You haven't answered any yet. You can start again any time."
+                : `We'll score the ${round.results.length} you've already answered.`}
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-4">
+              <BigButton variant="success" onClick={() => setQuitOpen(false)}>
+                Keep going
+              </BigButton>
+              <BigButton
+                variant="secondary"
+                onClick={() => {
+                  setQuitOpen(false);
+                  if (round.results.length === 0) {
+                    onHome();
+                    return;
+                  }
+                  finishedRef.current = true;
+                  const summary = summarize(round, recordsAtStart.current, Date.now());
+                  onFinish(summary);
+                }}
+              >
+                Stop and see my score
+              </BigButton>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

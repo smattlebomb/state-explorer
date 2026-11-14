@@ -94,3 +94,21 @@ describe('Home mode cards', () => {
     expect(go).toHaveBeenLastCalledWith({ name: 'setup', mode: 'name' });
   });
 });
+
+describe('Home Test card', () => {
+  it('has a big Test card that goes to the test setup screen', () => {
+    const { go, container } = setup();
+    const btn = button(container, /^📝Test/)!;
+    expect(btn).toBeTruthy();
+    expect(btn.textContent).toContain('All 50 states');
+    click(btn);
+    expect(go).toHaveBeenLastCalledWith({ name: 'setup-test' });
+  });
+
+  it('shows saved best test scores on the card', () => {
+    const data = { ...emptyData(), bestTests: { find: { correct: 42, total: 50 }, name: { correct: 30, total: 50 } } };
+    const { container } = setup(data);
+    expect(container.textContent).toContain('Find It 42/50');
+    expect(container.textContent).toContain('Name It 30/50');
+  });
+});

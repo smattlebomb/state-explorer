@@ -1,12 +1,15 @@
 /**
  * Quiz engine: pure functions, no React. Used by Find It and Name It.
  *
- * Two flavors:
+ * Three flavors:
  * - Quiz (graded): Find It gives up to 3 tries per state, then reveals the
  *   answer; Name It gives 1 pick from 4 names. Stars, streak and mastery count.
  * - Practice (`practice: true`): unlimited tries, plus a "Show me" reveal
  *   whenever she wants it. No score (the UI shows no stars or grade), and
  *   answers never count toward mastery.
+ * - Test (`test: true`): all 50 states in random order, one try each, no hints
+ *   or retries. First tap/choice is final. No in-round right/wrong feedback.
+ *   Answers do not count toward mastery, stars or streak.
  *
  * Also:
  * - Find It hints (shape, then region) are free, but a graded round that used
@@ -39,6 +42,8 @@ export interface QuestionResult {
   mastery: AnswerKind;
   /** 0..1 */
   score: number;
+  /** The state she picked (empty if the answer was revealed without a pick). */
+  picked: string;
 }
 
 export type QuestionStatus = 'asking' | 'correct' | 'revealed';
@@ -47,6 +52,8 @@ export interface Round {
   mode: QuizMode;
   /** Practice: unlimited tries, no score, no mastery. */
   practice: boolean;
+  /** Test: one try each, all 50, no hints/retries/feedback, no mastery. */
+  test: boolean;
   /** Infinity in Practice. */
   maxTries: number;
   questions: Question[];
@@ -70,6 +77,7 @@ export interface Round {
 export type Outcome = 'correct' | 'wrong' | 'revealed' | 'ignored';
 
 export const DEFAULT_ROUND_LENGTH = 10;
+export const TEST_ROUND_LENGTH = 50;
 export const FIND_MAX_TRIES = 3;
 /** Find It hints: 1 = shape card, 2 = region shading. */
 export const MAX_HINTS = 2;
@@ -87,6 +95,7 @@ export interface CreateRoundOptions {
   length?: number;
   rng?: Rng;
   practice?: boolean;
+  test?: boolean;
 }
 
 export function makeOptions(answer: string, pool: readonly string[], rng: Rng = Math.random): string[] {
@@ -98,14 +107,18 @@ export function makeOptions(answer: string, pool: readonly string[], rng: Rng = 
   return shuffle([answer, ...others.slice(0, 3)], rng);
 }
 
-export function createRound({ mode, pool, records, now, length = DEFAULT_ROUND_LENGTH, rng = Math.random, practice = false }: CreateRoundOptions): Round {
+export function createRound({ mode, pool, records, now, length, rng = Math.random, practice = false, test = false }: CreateRoundOptions): Round {
   if (pool.length === 0) throw new Error('Cannot create a round from an empty pool');
-  const states = pickStates(pool, records, length, now, rng);
+  if (test) practice = false;
+  const size = length ?? (test ? Math.min(TEST_ROUND_LENGTH, pool.length) : DEFAULT_ROUND_LENGTH);
+  // A test is a fair shuffle of the whole pool, not the usual "needs work" weighting.
+  const states = test ? shuffle(pool, rng).slice(0, size) : pickStates(pool, records, size, now, rng);
   const optionPool = [...pool];
   return {
     mode,
     practice,
-    maxTries: practice ? Infinity : mode === 'find' ? FIND_MAX_TRIES : 1,
+    test,
+    maxTries: test ? 1 : practice ? Infinity : mode === 'find' ? FIND_MAX_TRIES : 1,
     questions: states.map((state) => ({
       state,
       options: mode === 'name' ? makeOptions(state, optionPool, rng) : [],
@@ -125,7 +138,7 @@ export function createRound({ mode, pool, records, now, length = DEFAULT_ROUND_L
 }
 
 export function canTakeHint(round: Round): boolean {
-  return round.mode === 'find' && !round.finished && round.status === 'asking' && round.hintsUsed < MAX_HINTS;
+  return !round.test && round.mode === 'find' && !round.finished && round.status === 'asking' && round.hintsUsed < MAX_HINTS;
 }
 
 /** Unlock the next hint for the current question. Hints are free but cap stars (see summarize). */
@@ -143,16 +156,24 @@ export function scoreForTries(mode: QuizMode, triesUsed: number, correct: boolea
   return [1, 0.5, 0.25][triesUsed - 1] ?? 0;
 }
 
-function resolve(round: Round, q: Question, triesUsed: number, correct: boolean, wrongPicks: string[]): Round {
+function resolve(round: Round, q: Question, triesUsed: number, correct: boolean, wrongPicks: string[], picked: string): Round {
   const firstTry = correct && triesUsed === 1;
   const mastery: AnswerKind = !firstTry ? 'wrong' : round.hintsUsed > 0 ? 'assisted' : 'correct';
   const results = q.retry
     ? round.results
     : [
         ...round.results,
-        { state: q.state, triesUsed, firstTry, hintsUsed: round.hintsUsed, mastery, score: scoreForTries(round.mode, triesUsed, correct) },
+        {
+          state: q.state,
+          triesUsed,
+          firstTry,
+          hintsUsed: round.hintsUsed,
+          mastery,
+          score: scoreForTries(round.mode, triesUsed, correct),
+          picked,
+        },
       ];
-  const combo = mastery === 'correct' ? round.combo + 1 : 0;
+  const combo = round.test ? 0 : mastery === 'correct' ? round.combo + 1 : 0;
   return {
     ...round,
     triesUsed,
@@ -179,14 +200,14 @@ export function answer(round: Round, pick: string): { round: Round; outcome: Out
     return { round: { ...round, triesUsed, wrongPicks: [...round.wrongPicks, pick], combo: 0 }, outcome: 'wrong' };
   }
   const wrongPicks = correct ? round.wrongPicks : [...round.wrongPicks, pick];
-  return { round: resolve(round, q, triesUsed, correct, wrongPicks), outcome: correct ? 'correct' : 'revealed' };
+  return { round: resolve(round, q, triesUsed, correct, wrongPicks, pick), outcome: correct ? 'correct' : 'revealed' };
 }
 
 /** "Show me": reveal the answer on request (Practice). Counts as not found. */
 export function reveal(round: Round): Round {
   const q = currentQuestion(round);
   if (!q || round.status !== 'asking') return round;
-  return resolve(round, q, Math.max(1, round.triesUsed), false, round.wrongPicks);
+  return resolve(round, q, Math.max(1, round.triesUsed), false, round.wrongPicks, '');
 }
 
 /** Move on after a question is resolved. Missed states get one retry at the end. */
@@ -194,7 +215,7 @@ export function nextQuestion(round: Round, rng: Rng = Math.random): Round {
   if (round.finished || round.status === 'asking') return round;
   const q = round.questions[round.index];
   let questions = round.questions;
-  if (round.status === 'revealed' && !q.retry) {
+  if (round.status === 'revealed' && !q.retry && !round.test) {
     questions = [
       ...questions,
       { state: q.state, options: round.mode === 'name' ? makeOptions(q.state, round.optionPool, rng) : [], retry: true },
@@ -213,18 +234,30 @@ export function nextQuestion(round: Round, rng: Rng = Math.random): Round {
   };
 }
 
+export interface TestMiss {
+  state: string;
+  picked: string;
+}
+
 export interface RoundSummary {
   practice: boolean;
+  test: boolean;
+  /** True when every planned question was answered (a full 50 for a standard test). */
+  completed: boolean;
   total: number;
   firstTry: number;
   accuracy: number;
   stars: 1 | 2 | 3;
   missed: string[];
+  /** Test misses with what she picked (empty picked = skipped/revealed). */
+  misses: TestMiss[];
   /** True if any hint was used on a scored question (retries don't count). */
   usedHints: boolean;
   bestCombo: number;
   /** States that became mastered thanks to this round (graded rounds only). */
   newlyMastered: string[];
+  /** Every answered question, in order (used by the test results map). */
+  answers: { state: string; picked: string; correct: boolean }[];
 }
 
 /** Finishing a round always earns at least 1 star. */
@@ -248,16 +281,25 @@ export function summarize(round: Round, recordsAtStart: RecordMap = {}, now = 0)
   const accuracy = total === 0 ? 0 : sum / total;
   const usedHints = round.results.some((r) => r.hintsUsed > 0);
   const stars = starsFor(accuracy);
+  const missedResults = round.results.filter((r) => r.score === 0 || !r.firstTry);
+  // For a test, "missed" is any incorrect answer (one try, so score === 0).
+  const testMissed = round.results.filter((r) => r.score === 0);
+  const missed = round.test ? testMissed : missedResults;
+  const planned = round.questions.filter((q) => !q.retry).length;
   return {
     practice: round.practice,
+    test: round.test,
+    completed: round.results.length >= planned,
     total,
     firstTry: round.results.filter((r) => r.firstTry).length,
     accuracy,
     stars: usedHints ? (Math.min(stars, HINTED_MAX_STARS) as 1 | 2) : stars,
-    missed: round.results.filter((r) => !r.firstTry).map((r) => r.state),
+    missed: missed.map((r) => r.state),
+    misses: missed.map((r) => ({ state: r.state, picked: r.picked })),
     usedHints,
     bestCombo: round.bestCombo,
-    newlyMastered: round.practice ? [] : newlyMastered(recordsAtStart, round.results, now),
+    newlyMastered: round.practice || round.test ? [] : newlyMastered(recordsAtStart, round.results, now),
+    answers: round.results.map((r) => ({ state: r.state, picked: r.picked, correct: r.score > 0 })),
   };
 }
 

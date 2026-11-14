@@ -51,6 +51,17 @@ export function ProgressScreen({ data, update, onHome }: { data: SavedData; upda
       <p className="px-4 text-center text-xl font-bold text-slate-600">
         🏆 Mastered = right 3 times in a row · 🔥 Streak: {displayStreak(data.streak, today)} (best {data.streak.best}) · ⭐ {data.totalStars} stars · 🎮 {data.roundsPlayed} rounds
       </p>
+      <p className="px-4 text-center text-xl font-extrabold text-rose-700">
+        📝 Test best
+        {data.bestTests.find || data.bestTests.name ? (
+          <>
+            {data.bestTests.find ? ` · 👆 Find It ${data.bestTests.find.correct}/${data.bestTests.find.total} (${Math.round((data.bestTests.find.correct / data.bestTests.find.total) * 100)}%)` : ''}
+            {data.bestTests.name ? ` · 🔤 Name It ${data.bestTests.name.correct}/${data.bestTests.name.total} (${Math.round((data.bestTests.name.correct / data.bestTests.name.total) * 100)}%)` : ''}
+          </>
+        ) : (
+          ' · not taken yet'
+        )}
+      </p>
 
       <div className="grid gap-4 p-4 landscape:grid-cols-2">
         {REGION_IDS.map((id) => ({ r: getRegion(id), p: regionProgress(id, data.records) })).map(({ r, p }) => (
@@ -99,7 +110,7 @@ export function ProgressScreen({ data, update, onHome }: { data: SavedData; upda
           <div className="pop-in max-w-xl rounded-[2rem] bg-white p-8 text-center shadow-2xl">
             <div className="text-5xl">⚠️</div>
             <h2 className="mt-3 text-3xl font-black text-slate-800">Erase all progress?</h2>
-            <p className="mt-2 text-2xl text-slate-600">Stars, streak, and mastered states will all be erased. This can't be undone.</p>
+            <p className="mt-2 text-2xl text-slate-600">Stars, streak, mastered states, and test scores will all be erased. This can't be undone.</p>
             <div className="mt-6 flex flex-wrap justify-center gap-4">
               <BigButton variant="success" onClick={() => setConfirming(false)}>
                 Keep it!

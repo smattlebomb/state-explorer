@@ -9,6 +9,7 @@ An iPad-first web app (PWA) that helps kids (about ages 6–10) learn to find th
   1. **Shape:** the state's outline on its own card, to match against the map.
   2. **Region:** the state's whole region is shaded, with "It's in the West, the left side of the map."
 - **Name It**: one state glows. Pick its name from 4 big buttons.
+- **📝 Test:** a big card on the home screen. All 50 states, in a random order, for Find It or Name It. One try per state, no hints, and no right/wrong feedback until the end. Zoom still works (a pinch or pan never counts as an answer). You can stop with a confirm. The results show x/50 and a percent, a map colored green/red, and a list of misses (what you picked vs the right answer). Your best completed score is saved on My Map.
 - **Quiz or Practice:** the setup screen before Find It or Name It has two big buttons.
   - **🏆 Quiz** is graded: stars, streak, mastery and an end-of-round score.
   - **🎈 Practice** has no score at all: unlimited tries, free hints, and a **👀 Show me** button.

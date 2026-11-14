@@ -125,6 +125,25 @@ export function HomeScreen({ data, go }: { data: SavedData; go: (s: Screen) => v
         ))}
       </div>
 
+      <button
+        type="button"
+        onClick={() => go({ name: 'setup-test' })}
+        className="mt-5 flex min-h-32 w-full max-w-4xl items-center gap-5 rounded-[2rem] bg-rose-500 px-6 py-5 text-left text-white shadow-[0_8px_0_#be123c] transition active:translate-y-1.5 active:shadow-none"
+      >
+        <span className="text-6xl">📝</span>
+        <span>
+          <span className="block text-4xl font-black">Test</span>
+          <span className="block text-xl font-bold opacity-90">All 50 states, one try each. Find It or Name It.</span>
+          {(data.bestTests.find || data.bestTests.name) && (
+            <span className="mt-2 inline-block rounded-full bg-white/25 px-3 py-1 text-lg font-extrabold">
+              Best
+              {data.bestTests.find ? ` · Find It ${data.bestTests.find.correct}/${data.bestTests.find.total}` : ''}
+              {data.bestTests.name ? ` · Name It ${data.bestTests.name.correct}/${data.bestTests.name.total}` : ''}
+            </span>
+          )}
+        </span>
+      </button>
+
       <div className="mt-8 flex w-full max-w-4xl flex-wrap justify-center gap-4">
         <button
           type="button"
