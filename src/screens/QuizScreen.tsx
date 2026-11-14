@@ -73,7 +73,7 @@ interface Props {
 
 export function QuizScreen({ mode, regionId, practice, data, update, onHome, onFinish }: Props) {
   const region = getRegion(regionId);
-  const { regionColors, keepNames } = data.settings;
+  const { regionColors, keepNames, narration } = data.settings;
   const recordsAtStart = useRef(data.records);
   const [round, setRound] = useState<Round>(() => createRound({ mode, pool: region.states, records: data.records, now: Date.now(), practice }));
   const [message, setMessage] = useState<string | null>(null);
@@ -300,12 +300,14 @@ export function QuizScreen({ mode, regionId, practice, data, update, onHome, onF
                 </span>
               </button>
             )}
-            <IconButton
-              label="Say it again"
-              onClick={() => speak(round.hintsUsed > 0 && !resolved ? `${spokenPrompt(round)} ${hintText(target, round.hintsUsed).spoken}` : spokenPrompt(round))}
-            >
-              🔊
-            </IconButton>
+            {narration && (
+              <IconButton
+                label="Say it again"
+                onClick={() => speak(round.hintsUsed > 0 && !resolved ? `${spokenPrompt(round)} ${hintText(target, round.hintsUsed).spoken}` : spokenPrompt(round))}
+              >
+                🔊
+              </IconButton>
+            )}
           </>
         }
       >

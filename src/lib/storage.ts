@@ -2,8 +2,8 @@ import { recordAnswer, recordPracticeAnswer, type AnswerKind, type RecordMap } f
 import { EMPTY_STREAK, recordPractice, type StreakState } from './streak';
 
 export interface Settings {
-  /** Read prompts aloud (Web Speech API). */
-  speech: boolean;
+  /** Spoken narration (Web Speech API). Off by default, including for existing saves. */
+  narration: boolean;
   /** Short Web Audio sound effects (ding / boop / fanfare). */
   sound: boolean;
   /** Color every state by its region. Off = plain blank map (harder). */
@@ -16,7 +16,7 @@ export interface Settings {
   practice: boolean;
 }
 
-export const DEFAULT_SETTINGS: Settings = { speech: true, sound: true, regionColors: true, keepNames: true, learnKeepNames: false, practice: false };
+export const DEFAULT_SETTINGS: Settings = { narration: false, sound: true, regionColors: true, keepNames: true, learnKeepNames: false, practice: false };
 
 export interface SavedData {
   version: 1;
@@ -43,7 +43,9 @@ export function emptyData(): SavedData {
   };
 }
 
-/** Known boolean settings only; missing ones (e.g. from an older save) get defaults. */
+/** Known boolean settings only; missing ones (e.g. from an older save) get defaults.
+ *  The old `speech` key is ignored: narration always starts off unless this save
+ *  already has a `narration` value (so an older "on" does not carry over). */
 function parseSettings(raw: unknown): Settings {
   const s = { ...DEFAULT_SETTINGS };
   if (raw && typeof raw === 'object') {
@@ -122,7 +124,7 @@ export function withRoundFinished(data: SavedData, stars: number, today: string)
   };
 }
 
-/** Reset learning progress but keep settings (like the speech toggle). */
+/** Reset learning progress but keep settings (like the narration toggle). */
 export function withReset(data: SavedData): SavedData {
   return { ...emptyData(), settings: data.settings };
 }

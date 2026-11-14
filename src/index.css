@@ -163,3 +163,10 @@ button {
     animation: fade-out 600ms ease-out forwards !important;
   }
 }
+
+/* Pinch/pan the map only — never the whole page. */
+.map-zoom-wrap,
+.map-zoom-wrap svg {
+  touch-action: none;
+  -ms-touch-action: none;
+}

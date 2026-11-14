@@ -19,19 +19,19 @@ export function SettingsScreen({ data, update, onHome }: { data: SavedData; upda
         {speechSupported() && (
           <Toggle
             emoji="🗣️"
-            label="Read aloud"
-            sub="Say the prompts and state names"
-            checked={s.speech}
+            label="Spoken narration"
+            sub="Read prompts and state names out loud. Off unless you turn it on."
+            checked={s.narration}
             onChange={(on) => {
-              set('speech', on);
-              if (on) setTimeout(() => speak('Read aloud is on!'), 50);
+              set('narration', on);
+              if (on) setTimeout(() => speak('Spoken narration is on!'), 50);
             }}
           />
         )}
         <Toggle
           emoji="🔔"
           label="Sound effects"
-          sub="Soft dings and cheers (separate from read aloud)"
+          sub="Soft dings and cheers (separate from spoken narration)"
           checked={s.sound}
           onChange={(on) => {
             set('sound', on);

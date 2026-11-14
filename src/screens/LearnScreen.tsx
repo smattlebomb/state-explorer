@@ -117,7 +117,7 @@ export function LearnScreen({ data, update, onHome, initialTour, onPlay }: Props
   const intro = !!tour && tour.step < 0;
   const seenInTour = new Set(tour && tour.step >= 0 ? tour.order.slice(0, tour.step) : []);
 
-  const { regionColors } = data.settings;
+  const { regionColors, narration } = data.settings;
   /** "Lit up" color: the state's region color (or a cheerful palette color when region colors are off). */
   const litColor = (id: string) => (regionColors ? regionFill(id) : exploredColor.get(id)!);
 
@@ -180,7 +180,7 @@ export function LearnScreen({ data, update, onHome, initialTour, onPlay }: Props
         onHome={onHome}
         right={
           <>
-            {(info || intro) && (
+            {narration && (info || intro) && (
               <IconButton label="Say it again" onClick={sayAgain}>
                 🔊
               </IconButton>

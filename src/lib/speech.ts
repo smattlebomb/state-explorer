@@ -1,6 +1,7 @@
-/** Read-aloud via the Web Speech API. Silently does nothing if unsupported. */
-let enabled = true;
+/** Spoken narration via the Web Speech API. Silently does nothing if unsupported or turned off. */
+let enabled = false;
 let voice: SpeechSynthesisVoice | null = null;
+let unlocked = false;
 
 function synth(): SpeechSynthesis | null {
   return typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : null;
@@ -23,14 +24,18 @@ function pickVoice() {
 if (synth()) {
   pickVoice();
   synth()!.addEventListener?.('voiceschanged', pickVoice);
-  // iOS Safari only allows speech that starts from a user gesture. Speaking a
-  // silent utterance on the very first touch "unlocks" it for later prompts.
-  const unlock = () => {
-    const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0;
-    synth()!.speak(u);
-  };
-  document.addEventListener('pointerdown', unlock, { once: true, capture: true });
+}
+
+/** iOS Safari only allows speech that starts from a user gesture. A silent
+ *  utterance on a tap "unlocks" it for later prompts. Never speak, even silently,
+ *  while narration is off. */
+function unlock() {
+  const s = synth();
+  if (!s || !enabled || unlocked) return;
+  const u = new SpeechSynthesisUtterance(' ');
+  u.volume = 0;
+  s.speak(u);
+  unlocked = true;
 }
 
 export function speechSupported(): boolean {
@@ -39,12 +44,19 @@ export function speechSupported(): boolean {
 
 export function setSpeechEnabled(on: boolean) {
   enabled = on;
-  if (!on) synth()?.cancel();
+  if (!on) {
+    synth()?.cancel();
+    return;
+  }
+  if (!unlocked && typeof document !== 'undefined') {
+    document.addEventListener('pointerdown', unlock, { once: true, capture: true });
+  }
 }
 
 export function speak(text: string) {
   const s = synth();
   if (!s || !enabled) return;
+  unlock();
   s.cancel();
   const u = new SpeechSynthesisUtterance(text);
   if (voice) u.voice = voice;

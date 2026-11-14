@@ -15,6 +15,7 @@ An iPad-first web app (PWA) that helps kids (about ages 6–10) learn to find th
   - On the same screen, pick **All 50** or one region. The Find It and Name It cards on the home screen say "Choose your states ➜" so this step is easy to find.
 - **Home "Practice next" card:** the big **👆 Find It** button starts the suggested region (the one with the smallest share mastered). Below it, a **"Pick a different region"** row has a chip for each of the 5 regions plus **All 50**, each showing its emoji, region color and mastered count. A chip starts Find It for that region right away, using the current Quiz/Practice choice (shown on the card).
 - **Keep names on the map** (on by default): once she gets a state right, its name stays printed on it for the rest of the round. That lets her find the remaining blank states by elimination. The tiny Northeast states show their names inside their callout boxes.
+- **Zoom the map:** pinch to zoom and drag to pan on an iPad, or use the big **+**, **−** and **↺** buttons (1×–8×). The map stays in bounds, state taps still work while zoomed, and zoom resets when you change screens. The page itself does not pinch-zoom.
 - **Region colors** (on by default): every state is colored by its region, using 5 colorblind-friendly hues with white borders and a small legend. Turn it off in ⚙️ Settings for a harder blank-map challenge.
 - **Game feel:** Ollie the explorer owl reacts to every answer.
   - A right answer pops the state with a gold outline and a ✓, with confetti and a cheer word, and builds a combo (🔥 at 3 in a row, 🚀 at 5).
@@ -128,7 +129,7 @@ Which tint each state gets is worked out automatically from the real borders, so
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| Read aloud | On | Speaks prompts, hints and state names (Web Speech API) |
+| Spoken narration | Off | Speaks prompts, hints and state names (Web Speech API). Off for everyone until you turn it on in Settings. |
 | Sound effects | On | Soft ding (right), boop (wrong), sparkle (combo) and fanfare (end of round), synthesized with the Web Audio API. Separate from read-aloud. |
 | Region colors | On | Colors states by region. Off = plain blank map |
 | Keep names on the map (Find It & Name It) | On | Correctly answered states stay labeled for the rest of the round. Also on the Quiz/Practice setup screen. |

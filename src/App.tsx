@@ -30,7 +30,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
 
   useEffect(() => saveData(data), [data]);
-  useEffect(() => setSpeechEnabled(data.settings.speech), [data.settings.speech]);
+  useEffect(() => setSpeechEnabled(data.settings.narration), [data.settings.narration]);
   useEffect(() => setSoundEnabled(data.settings.sound), [data.settings.sound]);
 
   const update: UpdateData = useCallback((fn) => setData((d) => fn(d)), []);

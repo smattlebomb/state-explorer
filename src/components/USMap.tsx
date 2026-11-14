@@ -1,6 +1,21 @@
-import { useImperativeHandle, useMemo, useRef, type PointerEvent, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type PointerEvent, type Ref } from 'react';
 import { getMapGeometry, type Callout, type StateShape } from '../lib/geo';
 import { hitTest } from '../lib/hittest';
+import {
+  MAX_SCALE,
+  MIN_SCALE,
+  clientToMap,
+  formatViewBox,
+  identityZoom,
+  meetScale,
+  panBy,
+  visibleWindow,
+  zoomAt,
+  zoomIn,
+  zoomOut,
+  type ViewBox,
+  type ZoomState,
+} from '../lib/mapZoom';
 import { regionFills } from '../lib/regionColors';
 import { SMALL_STATES } from '../data/states';
 
@@ -156,7 +171,13 @@ export function USMap({
 }: USMapProps) {
   const geo = getMapGeometry();
   const svgRef = useRef<SVGSVGElement>(null);
-  const down = useRef<{ x: number; y: number; id: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<
+    | { kind: 'none' }
+    | { kind: 'one'; id: number; startX: number; startY: number; lastX: number; lastY: number; panned: boolean }
+    | { kind: 'pinch'; startDist: number; startZoom: ZoomState; startAnchor: { x: number; y: number }; startMid: { x: number; y: number } }
+  >({ kind: 'none' });
 
   const isTappable = (id: string) => !tappable || tappable.has(id);
   const opacityOf = (id: string) => (dim?.has(id) ? 0.25 : isTappable(id) ? 1 : 0.45);
@@ -164,19 +185,49 @@ export function USMap({
   const callouts = useMemo(() => geo.callouts.filter((c) => !focus || focus.includes(c.id)), [geo, focus]);
   const calloutById = useMemo(() => new Map(callouts.map((c) => [c.id, c])), [callouts]);
 
-  const viewBox = useMemo(() => {
-    if (!focus || focus.length === 0) return `0 0 ${geo.width} ${geo.height}`;
+  const baseViewBox = useMemo((): ViewBox => {
+    if (!focus || focus.length === 0) return { x: 0, y: 0, w: geo.width, h: geo.height };
     const shapes = focus.map((id) => geo.byId.get(id)).filter((s): s is StateShape => !!s);
     const b = boundsOf(shapes, callouts);
     const pad = 24;
     let x = b.x0 - pad, y = b.y0 - pad, w = b.x1 - b.x0 + pad * 2, h = b.y1 - b.y0 + pad * 2;
-    // Don't zoom in absurdly far: keep at least ~40% of the full width visible.
+    // Don't zoom the region-focus view in absurdly far: keep at least ~40% of the full width visible.
     const minW = geo.width * 0.4;
     if (w < minW) { x -= (minW - w) / 2; w = minW; }
     const minH = geo.height * 0.4;
     if (h < minH) { y -= (minH - h) / 2; h = minH; }
-    return `${x} ${y} ${w} ${h}`;
+    return { x, y, w, h };
   }, [geo, focus, callouts]);
+  const baseKey = formatViewBox(baseViewBox);
+  const [zoom, setZoom] = useState<ZoomState>(() => identityZoom(baseViewBox));
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+
+  // Reset pinch-zoom when the screen or focused region changes (new base view).
+  useEffect(() => {
+    setZoom(identityZoom(baseViewBox));
+    gesture.current = { kind: 'none' };
+    pointers.current.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only when the base view identity changes
+  }, [baseKey]);
+
+  const viewBox = formatViewBox(visibleWindow(baseViewBox, zoom));
+
+  // Stop the page itself from pinch-zooming while fingers are on the map.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const stop = (e: TouchEvent) => e.preventDefault();
+    el.addEventListener('touchmove', stop, { passive: false });
+    return () => el.removeEventListener('touchmove', stop);
+  }, []);
+
+  const svgBox = () => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const r = svg.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+  };
 
   const hitShapes = useMemo(() => geo.shapes.filter((s) => !tappable || tappable.has(s.id)), [geo, tappable]);
   const hitBoxes = useMemo(() => callouts.filter((c) => !tappable || tappable.has(c.id)), [callouts, tappable]);
@@ -199,14 +250,91 @@ export function USMap({
   );
 
   const handleDown = (e: PointerEvent<SVGSVGElement>) => {
-    down.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // setPointerCapture can throw if the pointer is already gone.
+    }
+    const pts = [...pointers.current.values()];
+    if (pts.length >= 2) {
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      const box = svgBox();
+      const vis = visibleWindow(baseViewBox, zoomRef.current);
+      const startAnchor = box ? clientToMap(mid.x, mid.y, box, vis) : { x: vis.x + vis.w / 2, y: vis.y + vis.h / 2 };
+      gesture.current = { kind: 'pinch', startDist: dist, startZoom: zoomRef.current, startAnchor, startMid: mid };
+      return;
+    }
+    gesture.current = {
+      kind: 'one',
+      id: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      panned: false,
+    };
+  };
+
+  const handleMove = (e: PointerEvent<SVGSVGElement>) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current;
+    const box = svgBox();
+    if (g.kind === 'pinch' && pointers.current.size >= 2 && box) {
+      const pts = [...pointers.current.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      const z1 = zoomAt(baseViewBox, g.startZoom, dist / g.startDist, g.startAnchor.x, g.startAnchor.y);
+      const vis1 = visibleWindow(baseViewBox, z1);
+      const s = meetScale(box.width, box.height, vis1) || 1;
+      setZoom(panBy(baseViewBox, z1, -(mid.x - g.startMid.x) / s, -(mid.y - g.startMid.y) / s));
+      return;
+    }
+    if (g.kind === 'one' && g.id === e.pointerId) {
+      const travel = Math.hypot(e.clientX - g.startX, e.clientY - g.startY);
+      if (travel > MAX_TAP_MOVE_PX) {
+        g.panned = true;
+        if (zoomRef.current.k > MIN_SCALE && box) {
+          const vis = visibleWindow(baseViewBox, zoomRef.current);
+          const s = meetScale(box.width, box.height, vis) || 1;
+          const dx = e.clientX - g.lastX;
+          const dy = e.clientY - g.lastY;
+          setZoom((z) => panBy(baseViewBox, z, -dx / s, -dy / s));
+        }
+        g.lastX = e.clientX;
+        g.lastY = e.clientY;
+      }
+    }
   };
 
   const handleUp = (e: PointerEvent<SVGSVGElement>) => {
-    const start = down.current;
-    down.current = null;
-    if (!onTap || !start || start.id !== e.pointerId) return;
-    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > MAX_TAP_MOVE_PX) return;
+    const g = gesture.current;
+    pointers.current.delete(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // already released
+    }
+
+    const wasTap =
+      g.kind === 'one' &&
+      g.id === e.pointerId &&
+      !g.panned &&
+      Math.hypot(e.clientX - g.startX, e.clientY - g.startY) <= MAX_TAP_MOVE_PX;
+
+    if (pointers.current.size >= 2) {
+      // still pinching with leftover fingers; leave gesture as-is
+    } else if (pointers.current.size === 1) {
+      const [id, pt] = [...pointers.current.entries()][0];
+      gesture.current = { kind: 'one', id, startX: pt.x, startY: pt.y, lastX: pt.x, lastY: pt.y, panned: true };
+    } else {
+      gesture.current = { kind: 'none' };
+    }
+
+    if (!wasTap || !onTap) return;
     const svg = svgRef.current;
     const ctm = svg?.getScreenCTM();
     if (!svg || !ctm) return;
@@ -214,6 +342,11 @@ export function USMap({
     const tolerance = TAP_TOLERANCE_PX / ctm.a;
     const id = hitTest([pt.x, pt.y], hitShapes, tolerance, hitBoxes);
     if (id) onTap(id);
+  };
+
+  const handleCancel = (e: PointerEvent<SVGSVGElement>) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size === 0) gesture.current = { kind: 'none' };
   };
 
   const border = whiteBorders ? '#ffffff' : COLORS.border;
@@ -224,15 +357,21 @@ export function USMap({
   const fillOf = (id: string) => (id === pulse ? COLORS.target : fillFor(id));
   const labelSet = new Set(labels);
 
+  const atMin = zoom.k <= MIN_SCALE + 1e-6;
+  const atMax = zoom.k >= MAX_SCALE - 1e-6;
+
   return (
+    <div ref={wrapRef} className={`map-zoom-wrap relative h-full w-full ${className}`}>
     <svg
       ref={svgRef}
       viewBox={viewBox}
       preserveAspectRatio="xMidYMid meet"
-      className={`block h-full w-full touch-none ${className}`}
+      className="block h-full w-full touch-none"
+      style={{ touchAction: 'none' }}
       onPointerDown={handleDown}
+      onPointerMove={handleMove}
       onPointerUp={handleUp}
-      onPointerCancel={() => (down.current = null)}
+      onPointerCancel={handleCancel}
       role="img"
       aria-label="Map of the United States"
     >
@@ -245,6 +384,7 @@ export function USMap({
           stroke={border}
           strokeWidth={whiteBorders ? 1.6 : 1.25}
           strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
         />
       ))}
 
@@ -341,5 +481,41 @@ export function USMap({
           return <CheckBadge key={`badge-${correct!.key}`} x={x} y={y} />;
         })()}
     </svg>
+      <div className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2">
+        <button
+          type="button"
+          aria-label="Zoom in"
+          title="Zoom in"
+          disabled={atMax}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => setZoom((z) => zoomIn(baseViewBox, z))}
+          className="pointer-events-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-4xl font-black leading-none text-slate-800 shadow-[0_4px_0_#94a3b8] transition active:translate-y-1 active:shadow-[0_1px_0_#94a3b8] disabled:opacity-40 disabled:active:translate-y-0 disabled:active:shadow-[0_4px_0_#94a3b8]"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom out"
+          title="Zoom out"
+          disabled={atMin}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => setZoom((z) => zoomOut(baseViewBox, z))}
+          className="pointer-events-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-4xl font-black leading-none text-slate-800 shadow-[0_4px_0_#94a3b8] transition active:translate-y-1 active:shadow-[0_1px_0_#94a3b8] disabled:opacity-40 disabled:active:translate-y-0 disabled:active:shadow-[0_4px_0_#94a3b8]"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          aria-label="Reset zoom"
+          title="Reset zoom"
+          disabled={atMin}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => setZoom(identityZoom(baseViewBox))}
+          className="pointer-events-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-3xl font-black leading-none text-slate-800 shadow-[0_4px_0_#94a3b8] transition active:translate-y-1 active:shadow-[0_1px_0_#94a3b8] disabled:opacity-40 disabled:active:translate-y-0 disabled:active:shadow-[0_4px_0_#94a3b8]"
+        >
+          ↺
+        </button>
+      </div>
+    </div>
   );
 }

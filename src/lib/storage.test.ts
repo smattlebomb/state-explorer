@@ -26,8 +26,8 @@ describe('storage', () => {
     expect(parsed.settings.regionColors).toBe(false);
   });
 
-  it('default settings: read-aloud, sound, region colors and keep-names on; Quiz (not Practice)', () => {
-    expect(emptyData().settings).toEqual({ speech: true, sound: true, regionColors: true, keepNames: true, learnKeepNames: false, practice: false });
+  it('default settings: narration off, sound / region colors / keep-names on; Quiz (not Practice)', () => {
+    expect(emptyData().settings).toEqual({ narration: false, sound: true, regionColors: true, keepNames: true, learnKeepNames: false, practice: false });
   });
 
   it('Learn keep-names is its own setting: default OFF, saved, and independent of the quiz one', () => {
@@ -40,9 +40,22 @@ describe('storage', () => {
     expect(parseData(JSON.stringify({ settings: { keepNames: false } })).settings).toMatchObject({ keepNames: false, learnKeepNames: false });
   });
 
-  it('an older save with only { speech } gets the new settings filled in with defaults', () => {
-    const old = JSON.stringify({ version: 1, records: {}, explored: [], settings: { speech: false } });
-    expect(parseData(old).settings).toEqual({ ...DEFAULT_SETTINGS, speech: false });
+  it('an older save missing newer keys gets those filled in with defaults', () => {
+    const old = JSON.stringify({ version: 1, records: {}, explored: [], settings: { sound: false } });
+    expect(parseData(old).settings).toEqual({ ...DEFAULT_SETTINGS, sound: false });
+  });
+
+  it('ignores a saved speech:true (and speech:false) and defaults narration to off', () => {
+    const on = JSON.stringify({ version: 1, records: {}, explored: [], settings: { speech: true, sound: true } });
+    expect(parseData(on).settings.narration).toBe(false);
+    expect('speech' in parseData(on).settings).toBe(false);
+    const off = JSON.stringify({ settings: { speech: false } });
+    expect(parseData(off).settings.narration).toBe(false);
+  });
+
+  it('persists narration once the new key is present', () => {
+    const d = withSetting(emptyData(), 'narration', true);
+    expect(parseData(JSON.stringify(d)).settings.narration).toBe(true);
   });
 
   it('ignores unknown or wrongly-typed settings', () => {
@@ -55,12 +68,12 @@ describe('storage', () => {
 
   it('reset clears progress but keeps settings', () => {
     let d = withRoundFinished(withAnswer(emptyData(), 'OH', true, 1), 2, '2026-11-09');
-    d = withSetting(withSetting(d, 'speech', false), 'sound', false);
+    d = withSetting(withSetting(d, 'narration', true), 'sound', false);
     const r = withReset(d);
     expect(r.records).toEqual({});
     expect(r.totalStars).toBe(0);
     expect(r.streak.current).toBe(0);
-    expect(r.settings.speech).toBe(false);
+    expect(r.settings.narration).toBe(true);
     expect(r.settings.sound).toBe(false);
   });
 
