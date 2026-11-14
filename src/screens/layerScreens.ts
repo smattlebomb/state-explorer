@@ -3,3 +3,4 @@ export { LayerSetupScreen } from './LayerSetupScreen';
 export { LayerGameScreen } from './LayerGameScreen';
 export { LayerResultsScreen } from './LayerResultsScreen';
 export { LayerProgressScreen } from './LayerProgressScreen';
+export { CapitalsLearnScreen } from './CapitalsLearnScreen';

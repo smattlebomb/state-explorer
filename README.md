@@ -49,6 +49,14 @@ A big switcher at the top of Home picks the map. **USA** is the default and has 
   - **🇨🇦 Canada scope:** all 13 provinces and territories. Prince Edward Island keeps its callout box.
   - **📝 Test:** asks every item in the chosen scope once, in random order, with one try each. There are no hints and no right/wrong until the end; it only says "Answer recorded" and shows a counter like 12/44. **Stop** asks first. The results show x/N and a percent, a green/red map, and each miss (what she picked vs the right answer). The best completed score is saved per scope and per mode.
   - **📊 My Map:** each layer has its own, showing that layer's mastery, stars, streak and test bests.
+- **🏛️ Capitals** (a gold card on every Home tab): **State Capitals** (50), **Province & Territory Capitals** (13) and **Country Capitals** (195; display-only places are never asked).
+  - **🔍 Learn:** tap a place to see and hear its capital, with a ⭐ capital dot on the map and a note for unusual cases. For example: South Africa has 3 capitals; Bolivia uses Sucre, but its government works in La Paz; Albany is the capital, not New York City.
+  - **🏆 Quiz / 🎈 Practice / 📝 Test**, scoped like the place games (World: all, a continent or a region; USA: all 50 or a region; Canada: all 13). There are two kinds of question:
+    - **"What's the capital of Ohio?"**: 4 big capital buttons.
+    - **"Which state has the capital Columbus?"**: tap the map. Tiny countries keep their dots, and PEI keeps its box.
+  - **Wrong answers still teach:** "Lansing is the capital of Michigan." The capital dot appears after each answer.
+  - **Test misses** show the capital she picked vs the right one, or the place she tapped vs the right one.
+  - **Separate progress:** capitals have their own mastery, stars, streak and test bests in their own saves: `state-explorer:us-capitals:v1`, `state-explorer:world-capitals:v1` and `state-explorer:canada-capitals:v1`. Knowing where Ohio is doesn't count as knowing Columbus. Resetting capitals (on **📊 My Capitals**) never touches the place games, and the other way round.
 - **Separate saves:** World and Canada progress live in their own saves (`state-explorer:world:v1`, `state-explorer:canada:v1`). They never read or change the USA save (`state-explorer:v1`). Resetting one layer on its My Map leaves the others alone. Settings (read-aloud, sounds, region colors, keep names) are shared.
 - **Loaded only when needed:** the World and Canada maps download the first time you open them, so the USA app doesn't get any bigger to start.
 
@@ -195,7 +203,8 @@ src/
   lib/geo.ts          d3-geo AlbersUSA projection of the bundled us-atlas TopoJSON
   lib/worldMap.ts     world map: Natural Earth projection, continent → region → country levels, dots, colors
   lib/canadaMap.ts    Canada map: Lambert conic projection, PEI callout, colors
-  lib/layers.ts       World/Canada game scopes (all / continent / region), names, hint wording
+  lib/layers.ts       game layers (USA for capitals, World, Canada): scopes, names, capitals, hint wording
+  data/capitalCoords.ts   where each capital is (for the capital dot; tested to land on its own place)
   lib/layerProgress.ts  World/Canada saves (own localStorage keys), same mastery/streak rules as the US
   lib/counties.ts     US counties: names (County/Parish/Borough/city), per-state shapes, tap dots, colors
   data/world.ts, data/canada.ts   countries, regions, capitals, provinces (see data/WORLD_NOTES.md, CANADA_NOTES.md)
@@ -203,7 +212,8 @@ src/
   components/         USMap, ZoomMap (shared pinch/pan/zoom shell), WorldMap, Mascot (Ollie the owl), ShapeCard, RegionLegend, Toggle, buttons, long-press button
   screens/            Home, Setup (Quiz/Practice + region), Learn (+ region tour), Quiz (Find It + Name It),
                       Results, Progress, Settings, World, Canada, Counties,
-                      Layer* (World/Canada setup, game, results, My Map) (+ screen tests)
+                      Layer* (World/Canada games + capitals on all layers: setup, game, results, My Map),
+                      CapitalsLearn (+ screen tests)
   test/render.tsx     tiny jsdom render/click helpers for the screen tests
 scripts/
   make-icons.mjs      regenerates public/ icons (node scripts/make-icons.mjs)

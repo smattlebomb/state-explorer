@@ -18,6 +18,7 @@ import {
 } from '../lib/mapZoom';
 import { regionFills } from '../lib/regionColors';
 import { SMALL_STATES } from '../data/states';
+import { CapitalDot, type CapitalMark } from './CapitalDot';
 
 export const COLORS = {
   land: '#fef3c7',
@@ -77,6 +78,8 @@ export interface USMapProps {
   labels?: readonly string[];
   apiRef?: Ref<MapApi>;
   className?: string;
+  /** Capital dot + name (capitals games / Learn). Optional; the state games don't use it. */
+  capital?: CapitalMark | null;
 }
 
 function boundsOf(shapes: StateShape[], extra: { x: number; y: number; w: number; h: number }[]) {
@@ -168,6 +171,7 @@ export function USMap({
   labels = [],
   apiRef,
   className = '',
+  capital = null,
 }: USMapProps) {
   const geo = getMapGeometry();
   const svgRef = useRef<SVGSVGElement>(null);
@@ -480,6 +484,8 @@ export function USMap({
           const [x, y] = c ? [c.x + 2, c.y + 2] : [correctShape.centroid[0], correctShape.centroid[1] - (labelSet.has(correctShape.id) ? 14 : 0)];
           return <CheckBadge key={`badge-${correct!.key}`} x={x} y={y} />;
         })()}
+
+      {capital && <CapitalDot mark={capital} px={1.3} />}
     </svg>
       <div className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2">
         <button

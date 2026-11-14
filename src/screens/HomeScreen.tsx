@@ -115,10 +115,56 @@ function LayerSwitcher({ layer, onLayer }: { layer: Layer; onLayer: (l: Layer) =
   );
 }
 
+const CAPITALS_INFO: Record<Layer, { title: string; total: number; things: string }> = {
+  usa: { title: 'State Capitals', total: 50, things: 'Montgomery to Cheyenne' },
+  canada: { title: 'Province & Territory Capitals', total: 13, things: 'Victoria to Iqaluit' },
+  world: { title: 'Country Capitals', total: 195, things: 'Kabul to Harare' },
+};
+
+/** The capitals games on every Home tab (USA / Canada / World): Learn, Quiz, Test and My Capitals. */
+function CapitalsCard({ layer, go, progress }: { layer: Layer; go: (s: Screen) => void; progress: LayerProgress }) {
+  const info = CAPITALS_INFO[layer];
+  const mastered = Object.values(progress.records).filter((r) => masteryOf(r) === 'mastered').length;
+  const bestName = progress.bestTests[testKey('all', 'name')];
+  const btn = 'flex min-h-20 flex-col items-center justify-center rounded-3xl px-3 py-2 text-center transition active:translate-y-1 active:shadow-none';
+  return (
+    <section className="mt-5 w-full max-w-4xl rounded-[2rem] bg-amber-100 p-4 shadow-[0_8px_0_#d97706]" aria-label={info.title}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2 px-2">
+        <h2 className="text-3xl font-black text-amber-900">🏛️ {info.title}</h2>
+        <span className="text-xl font-extrabold text-amber-800">
+          🏆 {mastered} / {info.total}
+          {bestName && ` · 📝 best ${bestName.correct}/${bestName.total}`}
+        </span>
+      </div>
+      <p className="px-2 text-lg font-bold text-amber-800">
+        Learn every capital, {info.things}. Capitals have their own stars and progress.
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-3 landscape:grid-cols-4">
+        <button type="button" aria-label={`${info.title}: Learn`} onClick={() => go({ name: 'capitals-learn', layer })} className={`${btn} bg-sky-500 text-white shadow-[0_6px_0_#0369a1]`}>
+          <span className="text-2xl font-black">🔍 Learn</span>
+          <span className="text-base font-bold opacity-90">Tap to see capitals</span>
+        </button>
+        <button type="button" aria-label={`${info.title}: Quiz`} onClick={() => go({ name: 'layer-setup', layer, game: 'capitals', kind: 'name' })} className={`${btn} bg-amber-500 text-white shadow-[0_6px_0_#b45309]`}>
+          <span className="text-2xl font-black">🏆 Quiz</span>
+          <span className="text-base font-bold opacity-90">Quiz or practice</span>
+        </button>
+        <button type="button" aria-label={`${info.title}: Test`} onClick={() => go({ name: 'layer-setup', layer, game: 'capitals', kind: 'test' })} className={`${btn} bg-rose-500 text-white shadow-[0_6px_0_#be123c]`}>
+          <span className="text-2xl font-black">📝 Test</span>
+          <span className="text-base font-bold opacity-90">One try each</span>
+        </button>
+        <button type="button" aria-label={`${info.title}: My Capitals`} onClick={() => go({ name: 'layer-progress', layer, game: 'capitals' })} className={`${btn} bg-white text-slate-800 shadow-[0_6px_0_#94a3b8]`}>
+          <span className="text-2xl font-black">📊 My Capitals</span>
+          <span className="text-base font-bold text-slate-500">Mastered & best tests</span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 const LAYER_TOTAL: Record<'canada' | 'world', number> = { world: 195, canada: 13 };
 
 /** Home for the Canada and World layers: the same big cards as the US home, with that layer's own progress. */
-function OtherLayerHome({ layer, go, progress }: { layer: 'canada' | 'world'; go: (s: Screen) => void; progress: LayerProgress }) {
+function OtherLayerHome({ layer, go, progress, capitals }: { layer: 'canada' | 'world'; go: (s: Screen) => void; progress: LayerProgress; capitals: LayerProgress }) {
   const canada = layer === 'canada';
   const total = LAYER_TOTAL[layer];
   const today = toDayKey(new Date());
@@ -184,6 +230,8 @@ function OtherLayerHome({ layer, go, progress }: { layer: 'canada' | 'world'; go
         </span>
       </button>
 
+      <CapitalsCard layer={layer} go={go} progress={capitals} />
+
       <div className="mt-8 flex w-full max-w-4xl flex-wrap justify-center gap-4">
         <button
           type="button"
@@ -214,6 +262,7 @@ export function HomeScreen({
   layer = 'usa',
   onLayer = () => {},
   layerProgress,
+  capitalsProgress,
 }: {
   data: SavedData;
   go: (s: Screen) => void;
@@ -221,6 +270,8 @@ export function HomeScreen({
   onLayer?: (l: Layer) => void;
   /** Progress of the active World/Canada layer (its own store). */
   layerProgress?: LayerProgress;
+  /** Capitals progress for the active layer (its own store). */
+  capitalsProgress?: LayerProgress;
 }) {
   if (layer !== 'usa') {
     return (
@@ -230,14 +281,14 @@ export function HomeScreen({
         </h1>
         <p className="mt-2 text-center text-2xl font-bold text-slate-600">{layer === 'canada' ? "Let's explore Canada!" : "Let's explore the world!"}</p>
         <LayerSwitcher layer={layer} onLayer={onLayer} />
-        <OtherLayerHome layer={layer} go={go} progress={layerProgress ?? emptyLayerProgress()} />
+        <OtherLayerHome layer={layer} go={go} progress={layerProgress ?? emptyLayerProgress()} capitals={capitalsProgress ?? emptyLayerProgress()} />
       </main>
     );
   }
-  return <UsaHome data={data} go={go} onLayer={onLayer} />;
+  return <UsaHome data={data} go={go} onLayer={onLayer} capitals={capitalsProgress ?? emptyLayerProgress()} />;
 }
 
-function UsaHome({ data, go, onLayer }: { data: SavedData; go: (s: Screen) => void; onLayer: (l: Layer) => void }) {
+function UsaHome({ data, go, onLayer, capitals }: { data: SavedData; go: (s: Screen) => void; onLayer: (l: Layer) => void; capitals: LayerProgress }) {
   const today = toDayKey(new Date());
   const streak = displayStreak(data.streak, today);
   const mastered = ALL_ABBRS.filter((s) => masteryOf(data.records[s]) === 'mastered').length;
@@ -298,6 +349,8 @@ function UsaHome({ data, go, onLayer }: { data: SavedData; go: (s: Screen) => vo
           )}
         </span>
       </button>
+
+      <CapitalsCard layer="usa" go={go} progress={capitals} />
 
       <div className="mt-8 flex w-full max-w-4xl flex-wrap justify-center gap-4">
         <button

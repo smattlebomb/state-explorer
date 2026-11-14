@@ -24,12 +24,13 @@ import {
   layerWithPracticeAnswer,
   layerWithRoundFinished,
   layerWithTestScore,
-  type GameLayer,
+  type AnyLayer,
+  type GameKind,
   type LayerProgress,
 } from '../lib/layerProgress';
 import { layerConfig, scopeOf } from '../lib/layers';
 import { COUNTRIES, COUNTRY_BY_ID, continentOf } from '../data/world';
-import { LayerMap, OutlineCard, useLayerGeo } from '../components/LayerMap';
+import { LayerMap, OutlineCard, capitalMark, useLayerGeo } from '../components/LayerMap';
 import { MapLoading } from '../components/MapLoading';
 import { Mascot, type MascotMood } from '../components/Mascot';
 import { BigButton, IconButton, TopBar } from '../components/ui';
@@ -45,7 +46,9 @@ const RED = '#f87171';
 const pick = <T,>(list: readonly T[]) => list[Math.floor(Math.random() * list.length)];
 
 export interface LayerGameProps {
-  layer: GameLayer;
+  layer: AnyLayer;
+  /** 'places' = Find It / Name It; 'capitals' = "What's the capital of X?" (name) / "Which place has capital Y?" (find). */
+  game?: GameKind;
   mode: QuizMode;
   scopeId: string;
   practice: boolean;
@@ -63,14 +66,15 @@ export interface LayerGameProps {
  * New Zealand is 2 countries): the rest of the same continent first, so the
  * choices stay plausible.
  */
-function distractorsFor(layer: GameLayer, scopeIds: readonly string[], allIds: readonly string[]): readonly string[] {
+function distractorsFor(layer: AnyLayer, scopeIds: readonly string[], allIds: readonly string[]): readonly string[] {
   if (layer !== 'world' || scopeIds.length >= 4) return allIds;
   const first = COUNTRY_BY_ID.get(scopeIds[0]);
   return first ? COUNTRIES.filter((c) => continentOf(c) === continentOf(first)).map((c) => c.id) : allIds;
 }
 
 /** Find It / Name It (Quiz, Practice or Test) on the World or Canada map. Same rules as the US game. */
-export function LayerGameScreen({ layer, mode, scopeId, practice, test = false, settings, progress, updateProgress, onHome, onFinish }: LayerGameProps) {
+export function LayerGameScreen({ layer, game = 'places', mode, scopeId, practice, test = false, settings, progress, updateProgress, onHome, onFinish }: LayerGameProps) {
+  const capitals = game === 'capitals';
   const cfg = layerConfig(layer);
   const scope = scopeOf(cfg, scopeId);
   const { lg, failed } = useLayerGeo(layer);
@@ -101,15 +105,27 @@ export function LayerGameScreen({ layer, mode, scopeId, practice, test = false, 
   const targetName = cfg.nameOf(target);
   const prog = progressLabel(round);
   const itemWord = cfg.itemWord;
-  const promptText = mode === 'find' ? `Tap ${targetName}!` : `Which ${itemWord} is this?`;
+  const capitalOf = cfg.capitalOf;
+  const targetCapital = capitalOf(target);
+  /** What the answer buttons say: names, or capitals in "What's the capital?". */
+  const optionLabel = (id: string) => (capitals ? capitalOf(id) : cfg.nameOf(id));
+  const promptText = capitals
+    ? mode === 'find'
+      ? `Which ${itemWord} has the capital ${targetCapital}?`
+      : `What's the capital of ${targetName}?`
+    : mode === 'find'
+      ? `Tap ${targetName}!`
+      : `Which ${itemWord} is this?`;
 
   const spokenPrompt = (r: Round) => {
     const cq = currentQuestion(r);
     if (!cq) return '';
     const lead = cq.retry ? "Let's try one more time. " : '';
+    if (capitals && mode === 'find') return `${lead}Which ${itemWord} has the capital ${capitalOf(cq.state)}? Tap it!`;
     if (mode === 'find') return `${lead}Find ${cfg.nameOf(cq.state)}!`;
-    const opts = cq.options.map(cfg.nameOf);
-    return `${lead}Which ${itemWord} is this? ${opts.slice(0, -1).join(', ')}, or ${opts[opts.length - 1]}?`;
+    const opts = cq.options.map(optionLabel);
+    const question = capitals ? `What's the capital of ${cfg.nameOf(cq.state)}?` : `Which ${itemWord} is this?`;
+    return `${lead}${question} ${opts.slice(0, -1).join(', ')}, or ${opts[opts.length - 1]}?`;
   };
 
   const react = (m: MascotMood) => setMood((prev) => ({ mood: m, key: prev.key + 1 }));
@@ -166,8 +182,9 @@ export function LayerGameScreen({ layer, mode, scopeId, practice, test = false, 
     const cheer = pick(CHEERS);
     const box = mapWrap.current?.getBoundingClientRect();
     if (box && box.width > 0) burstAt(box.left + box.width / 2, box.top + box.height / 2);
-    setMessage(`🎉 ${cheer} That's ${targetName}!`);
-    speak(`${cheer} That's ${targetName}!`);
+    const said = capitals ? `${targetCapital} is the capital of ${targetName}!` : `That's ${targetName}!`;
+    setMessage(`🎉 ${cheer} ${said}`);
+    speak(`${cheer} ${said}`);
     if (!practice) {
       if (next.combo === COMBO_SMALL) soundCombo();
       else if (next.combo >= COMBO_BIG && next.combo % COMBO_BIG === 0) {
@@ -194,7 +211,13 @@ export function LayerGameScreen({ layer, mode, scopeId, practice, test = false, 
     soundWrong();
     react('oops');
     const oops = pick(OOPS);
-    if (outcome === 'wrong') {
+    if (outcome === 'wrong' && capitals) {
+      // Every wrong pick still teaches a real fact.
+      const fact = mode === 'find' ? `That's ${cfg.nameOf(choice)}. Its capital is ${capitalOf(choice)}.` : `${capitalOf(choice)} is the capital of ${cfg.nameOf(choice)}.`;
+      const hint = mode === 'find' && next.triesUsed === 2 ? ' Look inside the dashed circle!' : '';
+      setMessage(`${oops} ${fact} Try again!${hint}`);
+      speak(`${oops} ${fact} Try again!${hint}`);
+    } else if (outcome === 'wrong') {
       if (mode === 'find') {
         const hint = next.triesUsed === 2 ? ' Look inside the dashed circle!' : '';
         setMessage(`${oops} That's ${cfg.nameOf(choice)}. Try again!${hint}`);
@@ -204,23 +227,38 @@ export function LayerGameScreen({ layer, mode, scopeId, practice, test = false, 
         speak(`${oops} That one is ${cfg.nameOf(choice)}. Try another one!`);
       }
     } else {
-      setMessage(mode === 'find' ? `Here's ${targetName}! 👀` : `This one is ${targetName}! 👀`);
-      speak(`Good try! ${mode === 'find' ? 'Here is' : 'This one is'} ${targetName}.`);
+      // Out of tries. Capitals: still say whose capital she picked, then the answer.
+      const fact = capitals ? (mode === 'find' ? `That's ${cfg.nameOf(choice)}. ` : `${capitalOf(choice)} is the capital of ${cfg.nameOf(choice)}. `) : '';
+      setMessage(`${fact}${revealText()}`);
+      speak(`Good try! ${fact}${revealText().replace(' 👀', '')}`);
     }
   };
+
+  const revealText = () =>
+    capitals
+      ? mode === 'find'
+        ? `Here's ${targetName}! Its capital is ${targetCapital}. 👀`
+        : `The capital of ${targetName} is ${targetCapital}! 👀`
+      : mode === 'find'
+        ? `Here's ${targetName}! 👀`
+        : `This one is ${targetName}! 👀`;
 
   const handleShowMe = () => {
     if (round.status !== 'asking') return;
     const next = reveal(round);
     setRound(next);
     if (!q?.retry) persist(next);
-    setMessage(`Here's ${targetName}! 👀`);
-    speak(`Here is ${targetName}.`);
+    setMessage(revealText());
+    speak(revealText().replace(' 👀', ''));
   };
 
+  // Places: hint 1 = shape, hint 2 = region. Capitals: the region first (the shape would almost give it away).
+  const shapeHintLevel = capitals ? 2 : 1;
   const hintFor = (level: number) =>
-    level <= 1
-      ? { display: `💡 Here's the shape of ${targetName}. Find it on the map!`, spoken: `Here is the shape of ${targetName}. Can you find it?` }
+    level === shapeHintLevel
+      ? capitals
+        ? { display: `💡 Here's the shape of the ${itemWord}. Find it on the map!`, spoken: `Here is the shape of the ${itemWord}. Can you find it?` }
+        : { display: `💡 Here's the shape of ${targetName}. Find it on the map!`, spoken: `Here is the shape of ${targetName}. Can you find it?` }
       : cfg.hintRegion(target);
 
   const handleHint = () => {
@@ -234,8 +272,8 @@ export function LayerGameScreen({ layer, mode, scopeId, practice, test = false, 
   };
 
   const resolved = round.status !== 'asking';
-  const showShape = mode === 'find' && !resolved && round.hintsUsed >= 1;
-  const hintArea = mode === 'find' && round.hintsUsed >= 2 ? cfg.hintRegion(target).ids : null;
+  const showShape = mode === 'find' && !resolved && round.hintsUsed >= shapeHintLevel;
+  const hintArea = mode === 'find' && round.hintsUsed >= (capitals ? 1 : 2) ? cfg.hintRegion(target).ids : null;
   const dim = useMemo(() => (hintArea ? new Set(cfg.allIds.filter((id) => !hintArea.has(id))) : undefined), [hintArea, cfg]);
 
   // Name It shows the target (orange) until answered; Find It shows it only when revealed. Tests never reveal.
@@ -297,6 +335,7 @@ export function LayerGameScreen({ layer, mode, scopeId, practice, test = false, 
           <Mascot key={mood.key} mood={mood.mood} size={68} />
           <div className="min-w-0 flex-1 text-center">
             <div className="text-lg font-bold text-slate-500">
+              {capitals && '🏛️ Capitals · '}
               {test ? `📝 Test · ${scope.label} · ${prog.number} / ${prog.total}` : `${scope.emoji} ${scope.label}`} {prog.retry && '· one more try'}
               {mode === 'find' && !resolved && !practice && !test && ` · ${'❤️'.repeat(Math.max(0, round.maxTries - round.triesUsed))}`}
             </div>
@@ -327,7 +366,10 @@ export function LayerGameScreen({ layer, mode, scopeId, practice, test = false, 
             ring={ring}
             dim={dim}
             // Name It highlights the answer: never print its name until she has answered.
-            labelSelected={false}
+            // ("What's the capital of Ohio?" already names the place, so that one may show it.)
+            labelSelected={capitals && mode === 'name'}
+            // The capital dot appears once the question is answered (never during a test).
+            capital={!test && resolved ? capitalMark(lg, cfg, target) : null}
           />
         ) : (
           <MapLoading text={failed ? "Oops, the map didn't load. Go back and try again!" : undefined} />
@@ -367,7 +409,7 @@ export function LayerGameScreen({ layer, mode, scopeId, practice, test = false, 
                 className={`min-h-20 rounded-3xl px-3 text-2xl font-extrabold leading-tight transition active:translate-y-1 sm:text-3xl ${cls}`}
               >
                 {!test && opt === target && resolved ? '✅ ' : ''}
-                {cfg.nameOf(opt)}
+                {optionLabel(opt)}
               </button>
             );
           })}

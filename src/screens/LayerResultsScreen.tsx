@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { COMBO_SMALL, type QuizMode, type RoundSummary } from '../lib/quiz';
 import { displayStreak, toDayKey } from '../lib/streak';
-import { testKey, type GameLayer, type LayerProgress } from '../lib/layerProgress';
+import { testKey, type AnyLayer, type GameKind, type LayerProgress } from '../lib/layerProgress';
 import { layerConfig, scopeOf } from '../lib/layers';
 import { LayerMap, useLayerGeo } from '../components/LayerMap';
 import { MapLoading } from '../components/MapLoading';
@@ -12,7 +12,8 @@ import { soundFanfare } from '../lib/sound';
 import { bigCelebration } from '../lib/celebrate';
 
 interface Props {
-  layer: GameLayer;
+  layer: AnyLayer;
+  game?: GameKind;
   mode: QuizMode;
   scopeId: string;
   summary: RoundSummary;
@@ -23,12 +24,16 @@ interface Props {
 }
 
 /** End of a World / Canada round: same three endings as the US (Test, Practice, Quiz). */
-export function LayerResultsScreen({ layer, mode, scopeId, summary, progress, onHome, onAgain, onOther }: Props) {
+export function LayerResultsScreen({ layer, game = 'places', mode, scopeId, summary, progress, onHome, onAgain, onOther }: Props) {
+  const capitals = game === 'capitals';
   const cfg = layerConfig(layer);
   const scope = scopeOf(cfg, scopeId);
   const streak = displayStreak(progress.streak, toDayKey(new Date()));
   const { lg } = useLayerGeo(layer);
-  const words = cfg.itemsWord;
+  const words = capitals ? 'capitals' : cfg.itemsWord;
+  /** Chips: "Columbus (Ohio)" for capitals, just the name otherwise. */
+  const chipName = (id: string) => (capitals ? `${cfg.capitalOf(id)} (${cfg.nameOf(id)})` : cfg.nameOf(id));
+  const modeLabel = capitals ? (mode === 'find' ? '🏛️ Capitals · 📍 Find the place' : "🏛️ Capitals · What's the capital?") : mode === 'find' ? '👆 Find It' : '🔤 Name It';
 
   useEffect(() => {
     soundFanfare();
@@ -42,8 +47,9 @@ export function LayerResultsScreen({ layer, mode, scopeId, summary, progress, on
     const mastered = summary.newlyMastered.length;
     speak(
       `${HEADLINES[summary.stars]} You earned ${summary.stars} star${summary.stars === 1 ? '' : 's'}!` +
-        (mastered > 0 ? ` And you mastered ${mastered === 1 ? cfg.nameOf(summary.newlyMastered[0]) : `${mastered} new ${words}`}!` : ''),
+        (mastered > 0 ? ` And you mastered ${mastered === 1 ? chipName(summary.newlyMastered[0]) : `${mastered} new ${words}`}!` : ''),
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summary, cfg, words]);
 
   const byId = useMemo(() => new Map(summary.answers.map((a) => [a.state, a.correct])), [summary]);
@@ -57,7 +63,7 @@ export function LayerResultsScreen({ layer, mode, scopeId, summary, progress, on
 
   const header = (
     <div className="text-xl font-bold text-slate-500">
-      {cfg.emoji} {cfg.title} · {mode === 'find' ? '👆 Find It' : '🔤 Name It'} · {summary.test ? '📝 Test' : summary.practice ? '🎈 Practice' : '🏆 Quiz'} · {scope.emoji} {scope.label}
+      {cfg.emoji} {cfg.title} · {modeLabel} · {summary.test ? '📝 Test' : summary.practice ? '🎈 Practice' : '🏆 Quiz'} · {scope.emoji} {scope.label}
     </div>
   );
 
@@ -89,15 +95,7 @@ export function LayerResultsScreen({ layer, mode, scopeId, summary, progress, on
             <ul className="mt-3 space-y-2">
               {summary.misses.map((m) => (
                 <li key={m.state} className="rounded-2xl bg-rose-50 px-4 py-2 text-xl font-bold text-slate-800">
-                  <span className="font-black">{cfg.nameOf(m.state)}</span>
-                  {m.picked ? (
-                    <>
-                      {' '}
-                      — you picked <span className="text-rose-700">{cfg.nameOf(m.picked)}</span>
-                    </>
-                  ) : (
-                    ' — skipped'
-                  )}
+                  <MissLine capitals={capitals} mode={mode} state={m.state} picked={m.picked} nameOf={cfg.nameOf} capitalOf={cfg.capitalOf} />
                 </li>
               ))}
             </ul>
@@ -117,12 +115,12 @@ export function LayerResultsScreen({ layer, mode, scopeId, summary, progress, on
         <Mascot mood="celebrate" size={130} />
         <h1 className="text-6xl font-black text-sky-700">Practice done! 🎈</h1>
         <p className="text-3xl font-extrabold text-slate-700">
-          You practiced {summary.total} {summary.total === 1 ? cfg.itemWord : words}. Way to go!
+          You practiced {summary.total} {capitals ? (summary.total === 1 ? 'capital' : 'capitals') : summary.total === 1 ? cfg.itemWord : words}. Way to go!
         </p>
         {summary.missed.length > 0 && (
           <div className="max-w-3xl rounded-3xl bg-white/80 px-6 py-4">
             <div className="text-2xl font-bold text-slate-600">These are tricky. We'll see them again soon:</div>
-            <StateChips states={summary.missed} tone="practice" nameOf={cfg.nameOf} />
+            <StateChips states={summary.missed} tone="practice" nameOf={chipName} />
           </div>
         )}
         <Buttons onAgain={onAgain} onOtherRegion={onOther} onHome={onHome} otherLabel={`🗺️ Other ${words}`} />
@@ -149,16 +147,55 @@ export function LayerResultsScreen({ layer, mode, scopeId, summary, progress, on
       {summary.newlyMastered.length > 0 && (
         <div className="max-w-3xl rounded-3xl bg-white/80 px-6 py-4">
           <div className="text-2xl font-black text-green-700">🏆 New mastered {words}!</div>
-          <StateChips states={summary.newlyMastered} tone="sparkle" nameOf={cfg.nameOf} />
+          <StateChips states={summary.newlyMastered} tone="sparkle" nameOf={chipName} />
         </div>
       )}
       {summary.missed.length > 0 && (
         <div className="max-w-3xl rounded-3xl bg-white/80 px-6 py-4">
           <div className="text-2xl font-bold text-slate-600">Let's practice these again soon:</div>
-          <StateChips states={summary.missed} tone="practice" nameOf={cfg.nameOf} />
+          <StateChips states={summary.missed} tone="practice" nameOf={chipName} />
         </div>
       )}
       <Buttons onAgain={onAgain} onOtherRegion={onOther} onHome={onHome} otherLabel={`🗺️ Other ${words}`} />
     </main>
+  );
+}
+
+/**
+ * One test miss. Places: "Ohio — you picked Indiana". Capitals, "What's the capital?":
+ * "Ohio — you picked Lansing · it's Columbus". Capitals, "Find the place": "Columbus — you tapped Indiana · it's Ohio".
+ */
+export function MissLine({ capitals, mode, state, picked, nameOf, capitalOf }: { capitals: boolean; mode: QuizMode; state: string; picked: string; nameOf: (id: string) => string; capitalOf: (id: string) => string }) {
+  if (!capitals) {
+    return (
+      <>
+        <span className="font-black">{nameOf(state)}</span>
+        {picked ? (
+          <>
+            {' '}
+            — you picked <span className="text-rose-700">{nameOf(picked)}</span>
+          </>
+        ) : (
+          ' — skipped'
+        )}
+      </>
+    );
+  }
+  const question = mode === 'name' ? nameOf(state) : capitalOf(state);
+  const answer = mode === 'name' ? capitalOf(state) : nameOf(state);
+  const theirs = picked ? (mode === 'name' ? capitalOf(picked) : nameOf(picked)) : '';
+  return (
+    <>
+      <span className="font-black">{question}</span>
+      {theirs ? (
+        <>
+          {' '}
+          — you {mode === 'name' ? 'picked' : 'tapped'} <span className="text-rose-700">{theirs}</span>
+        </>
+      ) : (
+        ' — skipped'
+      )}
+      {' · '}it's <span className="text-green-700">{answer}</span>
+    </>
   );
 }

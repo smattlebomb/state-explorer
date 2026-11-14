@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { ZoomMap, type MapView } from './ZoomMap';
+import { CapitalDot, type CapitalMark } from './CapitalDot';
 import {
   CONTINENT_LABEL_AT,
   WORLD_MAX_SCALE,
@@ -39,6 +40,8 @@ export interface WorldMapProps {
   dim?: ReadonlySet<string>;
   /** Print the selected place's name (Learn: yes; Name It: no, that would give the answer away). */
   labelSelected?: boolean;
+  /** Capital dot + name (Capitals games / Learn). */
+  capital?: CapitalMark | null;
 }
 
 /** Fill for one place at this level. */
@@ -53,7 +56,7 @@ function placeFill(s: PlaceShape, level: WorldLevel, fills: ReturnType<typeof wo
   return s.continent === continent ? (fills.bySubregion.get(s.subregion) ?? GREY) : GREY;
 }
 
-export function WorldMap({ geo, level, selected, regionColors, onTapPlace, fillOverride, labels = [], ring = null, dim, labelSelected = true }: WorldMapProps) {
+export function WorldMap({ geo, level, selected, regionColors, onTapPlace, fillOverride, labels = [], ring = null, dim, labelSelected = true, capital = null }: WorldMapProps) {
   const fills = useMemo(() => worldFills(geo), [geo]);
   const base = useMemo(() => levelView(geo, level), [geo, level]);
 
@@ -147,6 +150,8 @@ export function WorldMap({ geo, level, selected, regionColors, onTapPlace, fillO
               </text>
             );
           })}
+
+        {capital && <CapitalDot mark={capital} px={px} />}
 
         {sel && (
           <>

@@ -18,8 +18,12 @@ import { MapLoading } from './components/MapLoading';
 import type { WorldStart } from './screens/WorldScreen';
 import {
   layerWithExplored,
+  loadCapitalsProgress,
   loadLayerProgress,
+  saveCapitalsProgress,
   saveLayerProgress,
+  type AnyLayer,
+  type GameKind,
   type GameLayer,
   type LayerProgress,
 } from './lib/layerProgress';
@@ -34,6 +38,7 @@ const LayerSetupScreen = lazy(() => import('./screens/layerScreens').then((m) =>
 const LayerGameScreen = lazy(() => import('./screens/layerScreens').then((m) => ({ default: m.LayerGameScreen })));
 const LayerResultsScreen = lazy(() => import('./screens/layerScreens').then((m) => ({ default: m.LayerResultsScreen })));
 const LayerProgressScreen = lazy(() => import('./screens/layerScreens').then((m) => ({ default: m.LayerProgressScreen })));
+const CapitalsLearnScreen = lazy(() => import('./screens/layerScreens').then((m) => ({ default: m.CapitalsLearnScreen })));
 
 /** Which map the Home screen is showing. USA is the default (and the full game). */
 export type Layer = 'usa' | 'canada' | 'world';
@@ -50,10 +55,12 @@ export type Screen =
   | { name: 'world'; start?: WorldStart }
   | { name: 'canada'; fromWorld?: boolean }
   | { name: 'counties'; state: string }
-  | { name: 'layer-setup'; layer: GameLayer; kind: QuizMode | 'test' }
-  | { name: 'layer-quiz'; layer: GameLayer; mode: QuizMode; scope: string; practice: boolean; test: boolean; game: number }
-  | { name: 'layer-results'; layer: GameLayer; mode: QuizMode; scope: string; practice: boolean; test: boolean; summary: RoundSummary }
-  | { name: 'layer-progress'; layer: GameLayer };
+  // World/Canada place games, and capitals games on all three layers (`kind` defaults to 'places').
+  | { name: 'layer-setup'; layer: AnyLayer; kind: QuizMode | 'test'; game?: GameKind }
+  | { name: 'layer-quiz'; layer: AnyLayer; mode: QuizMode; scope: string; practice: boolean; test: boolean; game: number; kind?: GameKind }
+  | { name: 'layer-results'; layer: AnyLayer; mode: QuizMode; scope: string; practice: boolean; test: boolean; summary: RoundSummary; kind?: GameKind }
+  | { name: 'layer-progress'; layer: AnyLayer; game?: GameKind }
+  | { name: 'capitals-learn'; layer: AnyLayer };
 
 export type UpdateData = (fn: (d: SavedData) => SavedData) => void;
 
@@ -78,6 +85,23 @@ export default function App() {
     savedLayers.current = layerData;
   }, [layerData]);
   const updateLayer = useCallback((l: GameLayer, fn: (p: LayerProgress) => LayerProgress) => setLayerData((d) => ({ ...d, [l]: fn(d[l]) })), []);
+  // Capitals progress: three more keys of their own, so capitals mastery never touches place-finding records.
+  const [capitalsData, setCapitalsData] = useState<Record<AnyLayer, LayerProgress>>(() => ({
+    usa: loadCapitalsProgress('usa'),
+    world: loadCapitalsProgress('world'),
+    canada: loadCapitalsProgress('canada'),
+  }));
+  const savedCapitals = useRef(capitalsData);
+  useEffect(() => {
+    for (const l of ['usa', 'world', 'canada'] as const) {
+      if (capitalsData[l] !== savedCapitals.current[l]) saveCapitalsProgress(l, capitalsData[l]);
+    }
+    savedCapitals.current = capitalsData;
+  }, [capitalsData]);
+  const updateCapitals = useCallback((l: AnyLayer, fn: (p: LayerProgress) => LayerProgress) => setCapitalsData((d) => ({ ...d, [l]: fn(d[l]) })), []);
+  /** The progress store (and updater) for a layer's place games or capitals games. */
+  const store = (l: AnyLayer, game: GameKind = 'places'): [LayerProgress, (fn: (p: LayerProgress) => LayerProgress) => void] =>
+    game === 'capitals' || l === 'usa' ? [capitalsData[l], (fn) => updateCapitals(l, fn)] : [layerData[l], (fn) => updateLayer(l, fn)];
 
   useEffect(() => saveData(data), [data]);
   useEffect(() => setSpeechEnabled(data.settings.narration), [data.settings.narration]);
@@ -93,7 +117,9 @@ export default function App() {
   let content;
   switch (screen.name) {
     case 'home':
-      content = <HomeScreen data={data} go={go} layer={layer} onLayer={setLayer} layerProgress={layer === 'usa' ? undefined : layerData[layer]} />;
+      content = (
+        <HomeScreen data={data} go={go} layer={layer} onLayer={setLayer} layerProgress={layer === 'usa' ? undefined : layerData[layer]} capitalsProgress={capitalsData[layer]} />
+      );
       break;
     case 'learn':
       content = (
@@ -177,16 +203,18 @@ export default function App() {
       );
       break;
     case 'layer-setup': {
-      const l = screen.layer;
+      const sc = screen;
+      const [progress, updateProgress] = store(sc.layer, sc.game);
       content = (
         <Suspense fallback={<MapLoading />}>
           <LayerSetupScreen
-            layer={l}
-            kind={screen.kind}
-            progress={layerData[l]}
-            updateProgress={(fn) => updateLayer(l, fn)}
+            layer={sc.layer}
+            game={sc.game}
+            kind={sc.kind}
+            progress={progress}
+            updateProgress={updateProgress}
             onHome={home}
-            onStart={(mode, scope, practice, test) => go({ name: 'layer-quiz', layer: l, mode, scope, practice, test, game: Date.now() })}
+            onStart={(mode, scope, practice, test) => go({ name: 'layer-quiz', layer: sc.layer, kind: sc.game, mode, scope, practice, test, game: Date.now() })}
           />
         </Suspense>
       );
@@ -194,20 +222,22 @@ export default function App() {
     }
     case 'layer-quiz': {
       const sc = screen;
+      const [progress, updateProgress] = store(sc.layer, sc.kind);
       content = (
         <Suspense fallback={<MapLoading />}>
           <LayerGameScreen
             key={sc.game}
             layer={sc.layer}
+            game={sc.kind}
             mode={sc.mode}
             scopeId={sc.scope}
             practice={sc.practice}
             test={sc.test}
             settings={data.settings}
-            progress={layerData[sc.layer]}
-            updateProgress={(fn) => updateLayer(sc.layer, fn)}
+            progress={progress}
+            updateProgress={updateProgress}
             onHome={home}
-            onFinish={(summary) => go({ name: 'layer-results', layer: sc.layer, mode: sc.mode, scope: sc.scope, practice: sc.practice, test: sc.test, summary })}
+            onFinish={(summary) => go({ name: 'layer-results', layer: sc.layer, kind: sc.kind, mode: sc.mode, scope: sc.scope, practice: sc.practice, test: sc.test, summary })}
           />
         </Suspense>
       );
@@ -215,31 +245,41 @@ export default function App() {
     }
     case 'layer-results': {
       const sc = screen;
+      const [progress] = store(sc.layer, sc.kind);
       content = (
         <Suspense fallback={<MapLoading />}>
           <LayerResultsScreen
             layer={sc.layer}
+            game={sc.kind}
             mode={sc.mode}
             scopeId={sc.scope}
             summary={sc.summary}
-            progress={layerData[sc.layer]}
+            progress={progress}
             onHome={home}
-            onAgain={() => go({ name: 'layer-quiz', layer: sc.layer, mode: sc.mode, scope: sc.scope, practice: sc.practice, test: sc.test, game: Date.now() })}
-            onOther={() => go({ name: 'layer-setup', layer: sc.layer, kind: sc.test ? 'test' : sc.mode })}
+            onAgain={() => go({ name: 'layer-quiz', layer: sc.layer, kind: sc.kind, mode: sc.mode, scope: sc.scope, practice: sc.practice, test: sc.test, game: Date.now() })}
+            onOther={() => go({ name: 'layer-setup', layer: sc.layer, game: sc.kind, kind: sc.test ? 'test' : sc.mode })}
           />
         </Suspense>
       );
       break;
     }
     case 'layer-progress': {
-      const l = screen.layer;
+      const sc = screen;
+      const [progress, updateProgress] = store(sc.layer, sc.game);
       content = (
         <Suspense fallback={<MapLoading />}>
-          <LayerProgressScreen layer={l} progress={layerData[l]} updateProgress={(fn) => updateLayer(l, fn)} onHome={home} />
+          <LayerProgressScreen layer={sc.layer} game={sc.game} progress={progress} updateProgress={updateProgress} onHome={home} />
         </Suspense>
       );
       break;
     }
+    case 'capitals-learn':
+      content = (
+        <Suspense fallback={<MapLoading />}>
+          <CapitalsLearnScreen layer={screen.layer} settings={data.settings} onHome={home} />
+        </Suspense>
+      );
+      break;
     case 'canada':
       content = (
         <Suspense fallback={<MapLoading />}>

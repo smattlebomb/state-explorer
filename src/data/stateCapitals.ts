@@ -59,3 +59,18 @@ export const STATE_CAPITALS: Readonly<Record<string, string>> = {
 export function stateCapital(abbr: string): string | undefined {
   return STATE_CAPITALS[abbr];
 }
+
+/** Learn-mode notes for capitals with a story (often: the capital isn't the biggest city). */
+export const STATE_CAPITAL_NOTES: Readonly<Record<string, string>> = {
+  AK: 'Juneau has no roads to the rest of North America. You get there by boat or plane!',
+  AZ: 'Phoenix is the biggest state capital in the United States.',
+  CA: 'Sacramento is the capital, not Los Angeles or San Francisco.',
+  FL: 'Tallahassee is the capital, not Miami or Orlando.',
+  HI: 'Honolulu is on the island of Oʻahu.',
+  IL: 'Springfield is the capital, not Chicago. Abraham Lincoln lived there.',
+  NY: 'Albany is the capital, not New York City.',
+  PA: 'Harrisburg is the capital, not Philadelphia or Pittsburgh.',
+  TX: 'Austin is the capital, not Houston or Dallas.',
+  VT: 'Montpelier is the smallest state capital: fewer than 10,000 people live there.',
+  WA: 'Olympia is the capital, not Seattle.',
+};

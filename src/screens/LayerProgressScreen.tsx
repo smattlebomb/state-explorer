@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { masteryOf, type Mastery } from '../lib/srs';
 import { displayStreak, toDayKey } from '../lib/streak';
-import { layerWithReset, type GameLayer, type LayerProgress } from '../lib/layerProgress';
+import { layerWithReset, type AnyLayer, type GameKind, type LayerProgress } from '../lib/layerProgress';
 import { layerConfig } from '../lib/layers';
 import { LayerMap, useLayerGeo } from '../components/LayerMap';
 import { MapLoading } from '../components/MapLoading';
@@ -16,14 +16,16 @@ const MASTERY_STYLE: Record<Mastery, { fill: string; chip: string; label: string
 };
 
 interface Props {
-  layer: GameLayer;
+  layer: AnyLayer;
+  game?: GameKind;
   progress: LayerProgress;
   updateProgress: (fn: (p: LayerProgress) => LayerProgress) => void;
   onHome: () => void;
 }
 
 /** "My Map" for the World or Canada layer: only that layer's progress (the US has its own). */
-export function LayerProgressScreen({ layer, progress, updateProgress, onHome }: Props) {
+export function LayerProgressScreen({ layer, game = 'places', progress, updateProgress, onHome }: Props) {
+  const capitals = game === 'capitals';
   const cfg = layerConfig(layer);
   const { lg } = useLayerGeo(layer);
   const [selected, setSelected] = useState<string | null>(null);
@@ -37,20 +39,23 @@ export function LayerProgressScreen({ layer, progress, updateProgress, onHome }:
     return (id: string) => (quiz.has(id) ? MASTERY_STYLE[masteryOf(progress.records[id])].fill : '#e2e8f0');
   }, [cfg, progress.records]);
 
+  const label = (id: string) => (capitals ? `${cfg.nameOf(id)} · ${cfg.capitalOf(id)}` : cfg.nameOf(id));
   const tap = (id: string) => {
     setSelected(id);
-    speak(cfg.nameOf(id));
+    speak(capitals ? `The capital of ${cfg.nameOf(id)} is ${cfg.capitalOf(id)}.` : cfg.nameOf(id));
   };
+  const what = capitals ? `${cfg.title} capitals` : cfg.title;
 
-  // World: one section per continent. Canada: one section for all 13.
-  const groups = cfg.scopes.length > 1 ? cfg.scopes.filter((s) => s.id.startsWith('c:')) : cfg.scopes;
+  // World: one section per continent. USA: per region. Canada: one section for all 13.
+  const grouped = cfg.scopes.filter((s) => s.id.startsWith('c:') || s.id.startsWith('r:'));
+  const groups = grouped.length > 0 ? grouped : cfg.scopes;
   const bests = Object.entries(progress.bestTests);
 
   return (
     <main className="flex h-full flex-col overflow-y-auto">
       <TopBar onHome={onHome}>
         <h1 className="text-3xl font-black text-slate-800 sm:text-4xl">
-          📊 My Map · {cfg.emoji} {cfg.title}
+          📊 {capitals ? 'My Capitals' : 'My Map'} · {cfg.emoji} {cfg.title}
         </h1>
       </TopBar>
 
@@ -104,7 +109,7 @@ export function LayerProgressScreen({ layer, progress, updateProgress, onHome }:
                   .sort((a, b) => cfg.nameOf(a).localeCompare(cfg.nameOf(b)))
                   .map((id) => (
                     <button key={id} type="button" onClick={() => tap(id)} className={`min-h-12 rounded-2xl px-3 text-xl font-bold ${MASTERY_STYLE[mastery(id)].chip}`}>
-                      {cfg.nameOf(id)}
+                      {label(id)}
                     </button>
                   ))}
               </div>
@@ -115,7 +120,7 @@ export function LayerProgressScreen({ layer, progress, updateProgress, onHome }:
 
       <div className="flex justify-center px-4 pt-4 pb-10">
         <LongPressButton onLongPress={() => setConfirming(true)} className="min-h-16 rounded-3xl bg-white/60 px-6 text-lg font-bold text-slate-500">
-          Grown-ups: hold for 3 seconds to reset {cfg.title} progress
+          Grown-ups: hold for 3 seconds to reset {what} progress
         </LongPressButton>
       </div>
 
@@ -123,9 +128,10 @@ export function LayerProgressScreen({ layer, progress, updateProgress, onHome }:
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-6">
           <div className="pop-in max-w-xl rounded-[2rem] bg-white p-8 text-center shadow-2xl">
             <div className="text-5xl">⚠️</div>
-            <h2 className="mt-3 text-3xl font-black text-slate-800">Erase {cfg.title} progress?</h2>
+            <h2 className="mt-3 text-3xl font-black text-slate-800">Erase {what} progress?</h2>
             <p className="mt-2 text-2xl text-slate-600">
-              {cfg.title} stars, streak, mastered {cfg.itemsWord} and test scores will be erased. The other maps keep theirs. This can't be undone.
+              {what} stars, streak, mastered {capitals ? 'capitals' : cfg.itemsWord} and test scores will be erased.{' '}
+              {capitals ? 'Finding places on the map is not touched.' : 'Capitals and the other maps keep theirs.'} This can't be undone.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-4">
               <BigButton variant="success" onClick={() => setConfirming(false)}>
@@ -140,7 +146,7 @@ export function LayerProgressScreen({ layer, progress, updateProgress, onHome }:
                   setConfirming(false);
                 }}
               >
-                Erase {cfg.title}
+                Erase {what}
               </BigButton>
             </div>
           </div>

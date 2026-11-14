@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { QuizMode } from '../lib/quiz';
 import { masteryOf } from '../lib/srs';
-import { layerWithPractice, testKey, type GameLayer, type LayerProgress } from '../lib/layerProgress';
+import { layerWithPractice, testKey, type AnyLayer, type GameKind, type LayerProgress } from '../lib/layerProgress';
 import { layerConfig, type Scope } from '../lib/layers';
 import { TopBar } from '../components/ui';
 import { speak } from '../lib/speech';
 
 interface Props {
-  layer: GameLayer;
+  layer: AnyLayer;
+  /** Place games (Find It / Name It) or capitals games. */
+  game?: GameKind;
   /** 'find' / 'name' = Quiz or Practice setup; 'test' = test setup. */
   kind: QuizMode | 'test';
   progress: LayerProgress;
@@ -17,14 +19,17 @@ interface Props {
 }
 
 /** Choose Quiz/Practice (or the test mode), then tap a scope to start: all, a continent, or a sub-region. */
-export function LayerSetupScreen({ layer, kind, progress, updateProgress, onHome, onStart }: Props) {
+export function LayerSetupScreen({ layer, game = 'places', kind, progress, updateProgress, onHome, onStart }: Props) {
+  const capitals = game === 'capitals';
   const cfg = layerConfig(layer);
   const test = kind === 'test';
-  const [testMode, setTestMode] = useState<QuizMode>('find');
-  const mode: QuizMode = test ? testMode : kind;
+  // Tests and capitals choose their question type here; place games arrive with it chosen.
+  const [chosenMode, setChosenMode] = useState<QuizMode>(capitals ? 'name' : kind === 'test' ? 'find' : kind);
+  const mode: QuizMode = test || capitals ? chosenMode : (kind as QuizMode);
   const practice = !test && progress.practice;
 
-  useEffect(() => speak(test ? `Find It test or Name It test? Then pick your ${cfg.itemsWord}!` : `Quiz or practice? Then pick your ${cfg.itemsWord}!`), [test, cfg]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => speak(test ? `${capitals ? 'Which kind of capitals test?' : 'Find It test or Name It test?'} Then pick your ${cfg.itemsWord}!` : `${capitals ? 'Capitals! ' : ''}Quiz or practice? Then pick your ${cfg.itemsWord}!`), [test, cfg]);
 
   const toggle = (on: boolean, emoji: string, title: string, sub: string, onClick: () => void) => (
     <button
@@ -44,6 +49,14 @@ export function LayerSetupScreen({ layer, kind, progress, updateProgress, onHome
       </span>
     </button>
   );
+
+  const TYPE_LABELS: Record<QuizMode, [title: string, emoji: string, sub: string]> = capitals
+    ? { name: ["What's the capital?", '🏛️', 'Pick the capital from 4 buttons'], find: ['Find the place', '📍', 'Hear a capital, tap its place on the map'] }
+    : { name: ['Name It Test', '🔤', 'Pick the name of the glowing one'], find: ['Find It Test', '👆', 'Tap each one on the map'] };
+  const typeToggle = (m: QuizMode) => {
+    const [title, emoji, sub] = TYPE_LABELS[m];
+    return <div key={m} className="flex flex-1">{toggle(chosenMode === m, emoji, test && capitals ? `${title} Test` : title, sub, () => setChosenMode(m))}</div>;
+  };
 
   const detail = (s: Scope) => {
     if (test) {
@@ -79,7 +92,7 @@ export function LayerSetupScreen({ layer, kind, progress, updateProgress, onHome
     <main className="flex h-full flex-col overflow-y-auto">
       <TopBar onHome={onHome}>
         <h1 className="text-3xl font-black text-slate-800 sm:text-4xl">
-          {cfg.emoji} {test ? '📝 Test' : mode === 'find' ? '👆 Find It' : '🔤 Name It'}
+          {cfg.emoji} {capitals && '🏛️ Capitals'} {test ? '📝 Test' : capitals ? 'Quiz' : mode === 'find' ? '👆 Find It' : '🔤 Name It'}
         </h1>
       </TopBar>
 
@@ -89,14 +102,13 @@ export function LayerSetupScreen({ layer, kind, progress, updateProgress, onHome
             <p className="text-center text-2xl font-bold text-slate-600">
               Every {cfg.itemWord} you pick, in a random order. One try each. No hints, and no right or wrong until the end.
             </p>
-            <div className="flex flex-col gap-4 sm:flex-row">
-              {toggle(testMode === 'find', '👆', 'Find It Test', 'Tap each one on the map', () => setTestMode('find'))}
-              {toggle(testMode === 'name', '🔤', 'Name It Test', 'Pick the name of the glowing one', () => setTestMode('name'))}
-            </div>
+            <div className="flex flex-col gap-4 sm:flex-row">{capitals ? [typeToggle('name'), typeToggle('find')] : [typeToggle('find'), typeToggle('name')]}</div>
           </>
         ) : (
+          <>
+          {capitals && <div className="flex flex-col gap-4 sm:flex-row">{[typeToggle('name'), typeToggle('find')]}</div>}
           <div className="flex flex-col gap-4 sm:flex-row">
-            {toggle(!practice, '🏆', 'Quiz', `Earn stars and master ${cfg.itemsWord}`, () => {
+            {toggle(!practice, '🏆', 'Quiz', `Earn stars and master ${capitals ? 'capitals' : cfg.itemsWord}`, () => {
               updateProgress((p) => layerWithPractice(p, false));
               speak('Quiz. Earn stars!');
             })}
@@ -105,6 +117,7 @@ export function LayerSetupScreen({ layer, kind, progress, updateProgress, onHome
               speak('Practice. No score, take your time!');
             })}
           </div>
+          </>
         )}
         <h2 className="pt-2 text-center text-3xl font-black text-slate-800">Which {cfg.itemsWord}? Tap to start!</h2>
       </div>
@@ -112,9 +125,9 @@ export function LayerSetupScreen({ layer, kind, progress, updateProgress, onHome
       <div className="flex flex-col gap-4 p-4">
         {bigScope(all)}
         {continents.map((c) => {
-          const all = rest.filter((s) => s.continent === c.id.slice(2));
+          const inContinent = rest.filter((s) => s.continent === c.id.slice(2));
           // South America's only sub-region is the whole continent: don't show the same button twice.
-          const subs = all.length > 1 ? all : [];
+          const subs = inContinent.length > 1 ? inContinent : [];
           return (
             <section key={c.id} className="rounded-[2rem] bg-white/70 p-3">
               <div className="grid gap-3 landscape:grid-cols-[minmax(14rem,1fr)_3fr]">

@@ -9,7 +9,7 @@
  * Prince Edward Island gets a callout box out in the Atlantic, like the tiny
  * US Northeast states, so it is always easy to tap.
  */
-import { geoConicConformal, geoPath } from 'd3-geo';
+import { geoConicConformal, geoPath, type GeoProjection } from 'd3-geo';
 import { feature, neighbors as topoNeighbors } from 'topojson-client';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import type { CanadaTopology } from '../data/canadaGeo';
@@ -42,6 +42,8 @@ export interface CanadaGeometry {
   byId: Map<string, ProvinceShape>;
   callouts: ProvinceCallout[];
   neighbors: Map<string, Set<string>>;
+  /** The map's projection (to place capital dots). */
+  projection: GeoProjection;
 }
 
 const CALLOUT = { w: 190, h: 56 };
@@ -102,7 +104,7 @@ export function buildCanadaGeometry(topo: CanadaTopology): CanadaGeometry {
     for (const j of list) neighbors.get(String(geoms[i].id))?.add(String(geoms[j].id));
   });
 
-  const geo = { view, shapes, byId, callouts, neighbors };
+  const geo = { view, shapes, byId, callouts, neighbors, projection };
   cached = { topo, geo };
   return geo;
 }

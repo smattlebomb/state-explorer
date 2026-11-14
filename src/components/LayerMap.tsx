@@ -3,19 +3,28 @@ import { loadWorldTopology } from '../data/worldGeo';
 import { loadCanadaTopology } from '../data/canadaGeo';
 import { buildWorldGeometry, type WorldGeometry, type WorldLevel } from '../lib/worldMap';
 import { buildCanadaGeometry, type CanadaGeometry } from '../lib/canadaMap';
-import type { GameLayer } from '../lib/layerProgress';
+import type { AnyLayer } from '../lib/layerProgress';
+import type { LayerConfig } from '../lib/layers';
+import { getMapGeometry } from '../lib/geo';
+import { baseFill, COLORS, USMap } from './USMap';
+import { ShapeCard } from './ShapeCard';
+import type { CapitalMark } from './CapitalDot';
 import type { ContinentId, SubregionId } from '../data/world';
+import { STATE_BY_ABBR } from '../data/states';
+
+const regionOfScope = (abbr: string) => `r:${STATE_BY_ABBR.get(abbr)?.region}`;
 import { WorldMap } from './WorldMap';
 import { CanadaMap } from './CanadaMap';
 
-/** Loaded map geometry for a game layer. */
-export type LayerGeo = { kind: 'world'; geo: WorldGeometry } | { kind: 'canada'; geo: CanadaGeometry };
+/** Loaded map geometry for a game layer. The US map is bundled, so it's ready at once. */
+export type LayerGeo = { kind: 'world'; geo: WorldGeometry } | { kind: 'canada'; geo: CanadaGeometry } | { kind: 'usa' };
 
 /** Lazily load (once) the map for a layer. */
-export function useLayerGeo(layer: GameLayer): { lg: LayerGeo | null; failed: boolean } {
-  const [lg, setLg] = useState<LayerGeo | null>(null);
+export function useLayerGeo(layer: AnyLayer): { lg: LayerGeo | null; failed: boolean } {
+  const [lg, setLg] = useState<LayerGeo | null>(layer === 'usa' ? { kind: 'usa' } : null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    if (layer === 'usa') return;
     let alive = true;
     const p: Promise<LayerGeo> =
       layer === 'world'
@@ -49,10 +58,39 @@ export interface LayerMapProps {
   dim?: ReadonlySet<string>;
   /** Print the selected item's name (off in the games: in Name It the selected one is the answer). */
   labelSelected?: boolean;
+  capital?: CapitalMark | null;
+}
+
+/** Where a place's capital goes on this map (null if unknown or off the projection). */
+export function capitalMark(lg: LayerGeo, cfg: LayerConfig, id: string): CapitalMark | null {
+  const at = cfg.capitalAt(id);
+  const label = cfg.capitalOf(id);
+  if (!at || !label) return null;
+  const projection = lg.kind === 'usa' ? getMapGeometry().projection : lg.geo.projection;
+  const p = projection([at[0], at[1]]);
+  return p ? { x: p[0], y: p[1], label } : null;
 }
 
 /** The World or Canada map, framed on a game scope. */
-export function LayerMap({ lg, scopeId, regionColors, selected = null, onTap, fillOverride, labels, ring, dim, labelSelected = true }: LayerMapProps) {
+export function LayerMap({ lg, scopeId, regionColors, selected = null, onTap, fillOverride, labels = [], ring, dim, labelSelected = true, capital = null }: LayerMapProps) {
+  if (lg.kind === 'usa') {
+    // The US map: region scopes ("r:west") focus and limit taps to that region.
+    const focus = scopeId.startsWith('r:') ? getMapGeometry().shapes.filter((s) => regionOfScope(s.id) === scopeId).map((s) => s.id) : undefined;
+    return (
+      <USMap
+        fillFor={(id) => fillOverride?.(id) ?? (id === selected ? COLORS.selected : baseFill(id, regionColors))}
+        whiteBorders={regionColors}
+        onTap={onTap}
+        focus={focus}
+        tappable={focus ? new Set(focus) : undefined}
+        dim={dim}
+        pulse={selected}
+        hint={ring ?? null}
+        labels={[...labels, ...(labelSelected && selected ? [selected] : [])]}
+        capital={capital}
+      />
+    );
+  }
   if (lg.kind === 'world') {
     return (
       <WorldMap
@@ -66,14 +104,16 @@ export function LayerMap({ lg, scopeId, regionColors, selected = null, onTap, fi
         ring={ring}
         dim={dim}
         labelSelected={labelSelected}
+        capital={capital}
       />
     );
   }
-  return <CanadaMap geo={lg.geo} selected={selected} regionColors={regionColors} onTap={onTap} fillOverride={fillOverride} labels={labels} ring={ring} dim={dim} labelSelected={labelSelected} />;
+  return <CanadaMap geo={lg.geo} selected={selected} regionColors={regionColors} onTap={onTap} fillOverride={fillOverride} labels={labels} ring={ring} dim={dim} labelSelected={labelSelected} capital={capital} />;
 }
 
 /** Find It hint 1: the answer's outline on its own card (its main pieces, same projection as the map). */
 export function OutlineCard({ lg, id, className = '' }: { lg: LayerGeo; id: string; className?: string }) {
+  if (lg.kind === 'usa') return <ShapeCard abbr={id} className={className} />;
   // World: frame the main pieces (mainland France, not French Guiana). Canada: the whole outline.
   const w0 = lg.kind === 'world' ? lg.geo.byId.get(id) : undefined;
   const c0 = lg.kind === 'canada' ? lg.geo.byId.get(id) : undefined;

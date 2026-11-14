@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { ZoomMap, type MapView } from './ZoomMap';
+import { CapitalDot, type CapitalMark } from './CapitalDot';
 import { CANADA_MAX_SCALE, canadaFills, pickProvince, type CanadaGeometry, type ProvinceCallout } from '../lib/canadaMap';
 
 const LAND = '#fef3c7';
@@ -22,6 +23,8 @@ export interface CanadaMapProps {
   dim?: ReadonlySet<string>;
   /** Print the selected province's name (Learn: yes; Name It: no, that would give the answer away). */
   labelSelected?: boolean;
+  /** Capital dot + name (Capitals games / Learn). */
+  capital?: CapitalMark | null;
 }
 
 function CalloutText({ c, name }: { c: ProvinceCallout; name: string }) {
@@ -40,7 +43,7 @@ function CalloutText({ c, name }: { c: ProvinceCallout; name: string }) {
 }
 
 /** Canada's 13 provinces and territories, with PEI's callout box. Shared by Learn and the games. */
-export function CanadaMap({ geo, selected, regionColors, onTap, fillOverride, labels = [], ring = null, dim, labelSelected = true }: CanadaMapProps) {
+export function CanadaMap({ geo, selected, regionColors, onTap, fillOverride, labels = [], ring = null, dim, labelSelected = true, capital = null }: CanadaMapProps) {
   const fills = useMemo(() => canadaFills(geo), [geo]);
   const fillOf = (id: string) => fillOverride?.(id) ?? (id === selected ? SELECTED : regionColors ? (fills.get(id) ?? LAND) : LAND);
   const border = regionColors ? '#ffffff' : BORDER;
@@ -94,6 +97,7 @@ export function CanadaMap({ geo, selected, regionColors, onTap, fillOverride, la
             vectorEffect="non-scaling-stroke"
           />
         )}
+        {capital && <CapitalDot mark={capital} px={px} />}
         {named.map((id) => {
           const s = geo.byId.get(id);
           if (!s) return null;

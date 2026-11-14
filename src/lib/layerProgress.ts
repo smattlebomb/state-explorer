@@ -1,6 +1,6 @@
 /**
- * Progress for the World and Canada game layers, stored separately from the
- * US save. Each layer has its own localStorage key; nothing here reads or
+ * Progress for the World and Canada game layers, and for the capitals games
+ * on all three layers, stored separately from the US save. Each layer has its own localStorage key; nothing here reads or
  * writes the US key (`state-explorer:v1`), so a reset of one never touches
  * the others.
  *
@@ -16,11 +16,32 @@ import type { QuizMode } from './quiz';
 import type { BestTestScore } from './storage';
 
 export type GameLayer = 'world' | 'canada';
+/** Any map layer: the US place games keep their original save, but US capitals use this module. */
+export type AnyLayer = GameLayer | 'usa';
+/** Place-finding games (Find It / Name It) or capitals games. Each has its own mastery. */
+export type GameKind = 'places' | 'capitals';
 
 export const LAYER_STORAGE_KEYS: Record<GameLayer, string> = {
   world: 'state-explorer:world:v1',
   canada: 'state-explorer:canada:v1',
 };
+
+/**
+ * Capitals progress: a separate key per layer, so knowing Columbus never
+ * counts as knowing where Ohio is (and resetting one never touches the other).
+ */
+export const CAPITALS_STORAGE_KEYS: Record<AnyLayer, string> = {
+  usa: 'state-explorer:us-capitals:v1',
+  world: 'state-explorer:world-capitals:v1',
+  canada: 'state-explorer:canada-capitals:v1',
+};
+
+/** The localStorage key for a layer's game progress (US place games use the original `state-explorer:v1`). */
+export function progressKey(layer: AnyLayer, game: GameKind): string {
+  if (game === 'capitals') return CAPITALS_STORAGE_KEYS[layer];
+  if (layer === 'usa') throw new Error('US place progress lives in the original save (storage.ts)');
+  return LAYER_STORAGE_KEYS[layer];
+}
 
 export interface LayerProgress {
   version: 1;
@@ -74,16 +95,32 @@ export function parseLayerProgress(raw: string | null): LayerProgress {
 }
 
 export function loadLayerProgress(layer: GameLayer): LayerProgress {
+  return loadProgress(LAYER_STORAGE_KEYS[layer]);
+}
+
+export function saveLayerProgress(layer: GameLayer, p: LayerProgress): void {
+  saveProgress(LAYER_STORAGE_KEYS[layer], p);
+}
+
+export function loadCapitalsProgress(layer: AnyLayer): LayerProgress {
+  return loadProgress(CAPITALS_STORAGE_KEYS[layer]);
+}
+
+export function saveCapitalsProgress(layer: AnyLayer, p: LayerProgress): void {
+  saveProgress(CAPITALS_STORAGE_KEYS[layer], p);
+}
+
+function loadProgress(key: string): LayerProgress {
   try {
-    return parseLayerProgress(localStorage.getItem(LAYER_STORAGE_KEYS[layer]));
+    return parseLayerProgress(localStorage.getItem(key));
   } catch {
     return emptyLayerProgress();
   }
 }
 
-export function saveLayerProgress(layer: GameLayer, p: LayerProgress): void {
+function saveProgress(key: string, p: LayerProgress): void {
   try {
-    localStorage.setItem(LAYER_STORAGE_KEYS[layer], JSON.stringify(p));
+    localStorage.setItem(key, JSON.stringify(p));
   } catch {
     // Private mode / storage full: still playable, just not remembered.
   }
