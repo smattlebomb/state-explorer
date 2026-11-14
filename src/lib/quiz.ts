@@ -7,7 +7,11 @@
  * - Practice (`practice: true`): unlimited tries, plus a "Show me" reveal
  *   whenever she wants it. No score (the UI shows no stars or grade), and
  *   answers never count toward mastery.
- * - Test (`test: true`): all 50 states in random order, one try each, no hints
+ * The engine works on plain string ids, so the same code runs the US states,
+ * the world's countries and Canada's provinces (ids: postal abbr, ISO code…).
+ *
+ * - Test (`test: true`): every item in the pool (all 50 states, or a world /
+ *   Canada scope) in random order, one try each, no hints
  *   or retries. First tap/choice is final. No in-round right/wrong feedback.
  *   Answers do not count toward mastery, stars or streak.
  *
@@ -69,6 +73,8 @@ export interface Round {
   results: QuestionResult[];
   /** Pool of states used for distractors. */
   optionPool: string[];
+  /** Extra distractors when the pool has fewer than 4 items (default: the 50 states). */
+  optionFallback: readonly string[];
   /** First-try, no-hint correct answers in a row. */
   combo: number;
   bestCombo: number;
@@ -77,6 +83,7 @@ export interface Round {
 export type Outcome = 'correct' | 'wrong' | 'revealed' | 'ignored';
 
 export const DEFAULT_ROUND_LENGTH = 10;
+/** A US test: all 50 states. (Every test asks its whole pool.) */
 export const TEST_ROUND_LENGTH = 50;
 export const FIND_MAX_TRIES = 3;
 /** Find It hints: 1 = shape card, 2 = region shading. */
@@ -96,21 +103,24 @@ export interface CreateRoundOptions {
   rng?: Rng;
   practice?: boolean;
   test?: boolean;
+  /** Name It: where to find extra wrong choices if the pool is smaller than 4 (default: the 50 states). */
+  distractors?: readonly string[];
 }
 
-export function makeOptions(answer: string, pool: readonly string[], rng: Rng = Math.random): string[] {
+export function makeOptions(answer: string, pool: readonly string[], rng: Rng = Math.random, fallback: readonly string[] = ALL_ABBRS): string[] {
   const others = shuffle(pool.filter((s) => s !== answer), rng);
   if (others.length < 3) {
-    const extra = shuffle(ALL_ABBRS.filter((s) => s !== answer && !others.includes(s)), rng);
+    const extra = shuffle(fallback.filter((s) => s !== answer && !others.includes(s)), rng);
     others.push(...extra);
   }
   return shuffle([answer, ...others.slice(0, 3)], rng);
 }
 
-export function createRound({ mode, pool, records, now, length, rng = Math.random, practice = false, test = false }: CreateRoundOptions): Round {
+export function createRound({ mode, pool, records, now, length, rng = Math.random, practice = false, test = false, distractors = ALL_ABBRS }: CreateRoundOptions): Round {
   if (pool.length === 0) throw new Error('Cannot create a round from an empty pool');
   if (test) practice = false;
-  const size = length ?? (test ? Math.min(TEST_ROUND_LENGTH, pool.length) : DEFAULT_ROUND_LENGTH);
+  // A test asks every item in the pool once (50 for the US; 195 for "all countries").
+  const size = length ?? (test ? pool.length : DEFAULT_ROUND_LENGTH);
   // A test is a fair shuffle of the whole pool, not the usual "needs work" weighting.
   const states = test ? shuffle(pool, rng).slice(0, size) : pickStates(pool, records, size, now, rng);
   const optionPool = [...pool];
@@ -121,7 +131,7 @@ export function createRound({ mode, pool, records, now, length, rng = Math.rando
     maxTries: test ? 1 : practice ? Infinity : mode === 'find' ? FIND_MAX_TRIES : 1,
     questions: states.map((state) => ({
       state,
-      options: mode === 'name' ? makeOptions(state, optionPool, rng) : [],
+      options: mode === 'name' ? makeOptions(state, optionPool, rng, distractors) : [],
       retry: false,
     })),
     index: 0,
@@ -132,6 +142,7 @@ export function createRound({ mode, pool, records, now, length, rng = Math.rando
     finished: false,
     results: [],
     optionPool,
+    optionFallback: distractors,
     combo: 0,
     bestCombo: 0,
   };
@@ -218,7 +229,7 @@ export function nextQuestion(round: Round, rng: Rng = Math.random): Round {
   if (round.status === 'revealed' && !q.retry && !round.test) {
     questions = [
       ...questions,
-      { state: q.state, options: round.mode === 'name' ? makeOptions(q.state, round.optionPool, rng) : [], retry: true },
+      { state: q.state, options: round.mode === 'name' ? makeOptions(q.state, round.optionPool, rng, round.optionFallback) : [], retry: true },
     ];
   }
   const index = round.index + 1;

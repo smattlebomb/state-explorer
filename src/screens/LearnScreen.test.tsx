@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { button, click, mapLabels, render, type Rendered } from '../test/render';
 import { LearnScreen } from './LearnScreen';
@@ -112,5 +112,26 @@ describe('Learn "Keep names on the map"', () => {
     const text = c.querySelector('svg text.map-label')!;
     expect(text.getAttribute('fill')).toBe('#0f172a');
     expect(text.getAttribute('class')).toContain('map-label'); // .map-label = white stroke halo (index.css)
+  });
+});
+
+describe('Learn → US counties', () => {
+  it('after picking a state, a big button opens its counties (only when the app provides it)', () => {
+    const onCounties = vi.fn();
+    view = render(<LearnScreen data={emptyData()} update={() => {}} onHome={() => {}} initialTour="southwest" onPlay={() => {}} onCounties={onCounties} />);
+    const c = view.container;
+    expect(button(c, /Counties in/)).toBeUndefined(); // nothing picked yet
+    click(button(c, /Let's go/));
+    const b = button(c, /Counties in/)!;
+    expect(b.className).toContain('min-h-16');
+    click(b);
+    expect(onCounties).toHaveBeenCalledTimes(1);
+    expect(onCounties.mock.calls[0][0]).toMatch(/^(AZ|NM|OK|TX)$/);
+  });
+
+  it('no counties button without the callback (games and older callers unchanged)', () => {
+    const c = setup(false, 'southwest');
+    visit(c, 1);
+    expect(button(c, /Counties in/)).toBeUndefined();
   });
 });

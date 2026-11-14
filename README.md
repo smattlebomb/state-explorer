@@ -25,6 +25,33 @@ An iPad-first web app (PWA) that helps kids (about ages 6–10) learn to find th
   - Optional soft sound effects are generated in the browser, so there are no audio files.
 - Each Quiz round earns 1–3 ⭐, there's a daily 🔥 streak, and **My Map** shows every state as Mastered, Learning, or New, grouped by region with a progress bar for each.
 
+## 🇺🇸 USA · 🇨🇦 Canada · 🌍 World
+
+A big switcher at the top of Home picks the map. **USA** is the default and has every card and game described above, unchanged.
+
+- **🌍 World:** an explore/learn map.
+  - **Zooming in:** tap a continent to zoom into it, then a region (Western Europe, Southeast Asia, the Caribbean…), then tap any of the 195 countries to see and hear its name and capital. **⬆ Back** goes up one level. Big buttons under the map do the same as tapping it.
+  - **Tiny countries:** Vatican City, Monaco, Tuvalu and the other micro-states and small islands get round dots so they're easy to tap.
+  - **Other places:** Taiwan, Kosovo, Greenland, Puerto Rico and similar places can be tapped too. They say they aren't one of the 195 countries.
+  - **USA and Canada:** picking **Canada** offers **🇨🇦 Explore Canada's provinces**. Picking the **United States** offers **🇺🇸 Explore the 50 states**, which opens the USA Learn map.
+  - **Zoom:** goes up to 20× on the World map and 12× on the Canada map (8× on the USA map).
+- **🇨🇦 Canada:** tap the 10 provinces and 3 territories to see each name, whether it's a province or territory, and its capital. Prince Edward Island has its own callout box out in the Atlantic.
+- **🔎 US counties** (USA only, explore only, not graded): in USA **Learn**, tap a state, then **🔎 Counties in …**. That shows the state's counties.
+  - **Tapping:** tap one to see its name and state (Franklin County, Ohio · Orleans Parish, Louisiana). Tap another state to switch to its counties.
+  - **Zoom:** goes to 16× from the whole-state view; the state games stay at 8×.
+  - **Download and offline:** county shapes download only the first time, and after that they work offline. See `src/data/COUNTIES_NOTES.md`.
+- **Both maps:** they use the same pinch / drag / **+ − ↺** zoom as the USA map, and a pinch or drag never counts as a tap. Region colors follow the same ⚙️ Settings switch.
+- **🎮 World and Canada games** (on those Home tabs): **Find It**, **Name It** and **📝 Test**. They work just like the USA games:
+  - **Quiz:** stars, combos and mastery (right 3 times in a row).
+  - **Practice:** no score, unlimited tries, 👀 Show me.
+  - **Find It hints:** 2 free hints (the shape, then the region), and a dashed circle after 2 misses.
+  - **🌍 World scope:** pick **all 195 countries**, a **continent**, or a **UN region** (Western Europe, the Caribbean, Southeast Asia…). Tiny countries keep their tap dots. Taiwan, Kosovo, Greenland and other places that aren't among the 195 are never asked.
+  - **🇨🇦 Canada scope:** all 13 provinces and territories. Prince Edward Island keeps its callout box.
+  - **📝 Test:** asks every item in the chosen scope once, in random order, with one try each. There are no hints and no right/wrong until the end; it only says "Answer recorded" and shows a counter like 12/44. **Stop** asks first. The results show x/N and a percent, a green/red map, and each miss (what she picked vs the right answer). The best completed score is saved per scope and per mode.
+  - **📊 My Map:** each layer has its own, showing that layer's mastery, stars, streak and test bests.
+- **Separate saves:** World and Canada progress live in their own saves (`state-explorer:world:v1`, `state-explorer:canada:v1`). They never read or change the USA save (`state-explorer:v1`). Resetting one layer on its My Map leaves the others alone. Settings (read-aloud, sounds, region colors, keep names) are shared.
+- **Loaded only when needed:** the World and Canada maps download the first time you open them, so the USA app doesn't get any bigger to start.
+
 Everything runs on the device: no backend, no accounts, no analytics, no ads, no external links. Progress is saved in the browser's `localStorage`. The map data (us-atlas) is bundled with the app, so it doesn't need the internet.
 
 ## Live app
@@ -166,12 +193,20 @@ src/
   lib/storage.ts      localStorage load/save + pure updaters
   lib/hittest.ts      tap → state (with near-miss forgiveness)
   lib/geo.ts          d3-geo AlbersUSA projection of the bundled us-atlas TopoJSON
+  lib/worldMap.ts     world map: Natural Earth projection, continent → region → country levels, dots, colors
+  lib/canadaMap.ts    Canada map: Lambert conic projection, PEI callout, colors
+  lib/layers.ts       World/Canada game scopes (all / continent / region), names, hint wording
+  lib/layerProgress.ts  World/Canada saves (own localStorage keys), same mastery/streak rules as the US
+  lib/counties.ts     US counties: names (County/Parish/Borough/city), per-state shapes, tap dots, colors
+  data/world.ts, data/canada.ts   countries, regions, capitals, provinces (see data/WORLD_NOTES.md, CANADA_NOTES.md)
   lib/speech.ts       Web Speech API read-aloud
-  components/         USMap, Mascot (Ollie the owl), ShapeCard, RegionLegend, Toggle, buttons, long-press button
+  components/         USMap, ZoomMap (shared pinch/pan/zoom shell), WorldMap, Mascot (Ollie the owl), ShapeCard, RegionLegend, Toggle, buttons, long-press button
   screens/            Home, Setup (Quiz/Practice + region), Learn (+ region tour), Quiz (Find It + Name It),
-                      Results, Progress, Settings (+ HomeScreen.test.tsx, LearnScreen.test.tsx)
+                      Results, Progress, Settings, World, Canada, Counties,
+                      Layer* (World/Canada setup, game, results, My Map) (+ screen tests)
   test/render.tsx     tiny jsdom render/click helpers for the screen tests
 scripts/
   make-icons.mjs      regenerates public/ icons (node scripts/make-icons.mjs)
   probe-geo.mjs       prints projected state positions (dev helper)
+  build-world-topo.mjs, build-canada-topo.mjs   rebuild the simplified world / Canada map files
 ```

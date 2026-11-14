@@ -2,7 +2,7 @@
  * Builds the static map geometry once, in a fixed SVG coordinate space.
  * The us-atlas TopoJSON is bundled (imported as JSON), so this is fully offline.
  */
-import { geoAlbersUsa, geoPath, type GeoStream } from 'd3-geo';
+import { geoAlbersUsa, geoPath, type GeoProjection, type GeoStream } from 'd3-geo';
 import { feature, neighbors as topoNeighbors } from 'topojson-client';
 import type { Topology, GeometryCollection } from 'topojson-specification';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
@@ -41,10 +41,12 @@ export interface MapGeometry {
   callouts: Callout[];
   /** Which states share a border (from the TopoJSON arcs). */
   neighbors: Map<string, Set<string>>;
+  /** The AlbersUSA projection used for the map, so other layers (counties) line up exactly. */
+  projection: GeoProjection;
 }
 
 /** Collects projected rings by streaming a feature through the projection. */
-function projectRings(f: Feature<Geometry>, stream: (s: GeoStream) => GeoStream): Ring[] {
+export function projectRings(f: Feature<Geometry>, stream: (s: GeoStream) => GeoStream): Ring[] {
   const rings: Ring[] = [];
   let current: Pt[] | null = null;
   const sink: GeoStream = {
@@ -133,6 +135,6 @@ export function getMapGeometry(): MapGeometry {
     }
   });
 
-  cached = { width: MAP_WIDTH, height: MAP_HEIGHT, shapes, byId, callouts, neighbors };
+  cached = { width: MAP_WIDTH, height: MAP_HEIGHT, shapes, byId, callouts, neighbors, projection };
   return cached;
 }

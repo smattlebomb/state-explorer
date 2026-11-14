@@ -89,3 +89,26 @@ export function hitTest(p: Pt, shapes: readonly HitShape[], tolerance: number, b
   for (const b of boxes) if (inBox(p, b, tolerance)) return b.id;
   return null;
 }
+
+/** A round tap target (map units), e.g. a dot for a tiny island country. */
+export interface HitMarker {
+  id: string;
+  x: number;
+  y: number;
+  /** Hit radius in map units (usually a bit bigger than the drawn dot). */
+  r: number;
+}
+
+/** The marker closest to `p` among those whose circle contains it, or null. */
+export function hitTestMarkers(p: Pt, markers: readonly HitMarker[]): string | null {
+  let best: string | null = null;
+  let bestD = Infinity;
+  for (const m of markers) {
+    const d = Math.hypot(p[0] - m.x, p[1] - m.y);
+    if (d <= m.r && d < bestD) {
+      bestD = d;
+      best = m.id;
+    }
+  }
+  return best;
+}

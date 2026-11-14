@@ -119,3 +119,27 @@ describe('mapZoom', () => {
     expect(clientToMap(10, 110, svg, vis)).toEqual({ x: 0, y: 0 });
   });
 });
+
+describe('deeper max zoom (world map)', () => {
+  const base = { x: 0, y: 0, w: 1000, h: 500 };
+  it('a custom max lets zoom go past 8× and clamps there, staying in bounds', () => {
+    let z = identityZoom(base);
+    for (let i = 0; i < 20; i++) z = zoomIn(base, z, undefined, 20);
+    expect(z.k).toBe(20);
+    const vis = visibleWindow(base, z, 20);
+    expect(vis.w).toBeCloseTo(50);
+    expect(vis.x).toBeGreaterThanOrEqual(0);
+    expect(vis.x + vis.w).toBeLessThanOrEqual(1000);
+    // Panning far keeps the 20× window inside the map.
+    const edge = panBy(base, z, 10_000, 10_000, 20);
+    const e = visibleWindow(base, edge, 20);
+    expect(e.w).toBeCloseTo(50);
+    expect(e.x + e.w).toBeCloseTo(1000);
+  });
+
+  it('the default stays 8× (US map unchanged)', () => {
+    let z = identityZoom(base);
+    for (let i = 0; i < 20; i++) z = zoomIn(base, z);
+    expect(z.k).toBe(MAX_SCALE);
+  });
+});

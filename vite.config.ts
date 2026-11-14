@@ -37,7 +37,23 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,json,webmanifest}'],
+        // US county shapes (~840 KB) are NOT precached: most visits never open them.
+        globIgnores: ['**/counties-10m-*.js'],
         navigateFallback: 'index.html',
+        runtimeCaching: [
+          {
+            // The county chunk is cached the first time she opens counties, so it works
+            // offline afterwards. Its file name has a content hash, so the cached copy never
+            // goes stale: CacheFirst. Old hashed copies are trimmed when a new one arrives.
+            urlPattern: ({ url }) => /\/assets\/counties-10m-[\w-]+\.js$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'us-counties',
+              expiration: { maxEntries: 2 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

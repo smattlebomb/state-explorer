@@ -23,6 +23,8 @@ interface Props {
   initialTour?: RegionId;
   /** Jump to Find It with this region. */
   onPlay: (region: RegionId) => void;
+  /** Open the (US-only) counties view for a state. Optional so older callers/tests keep working. */
+  onCounties?: (abbr: string) => void;
 }
 
 /** step -1 = region intro (whole map, region shaded); 0..n-1 = each state; n = done. */
@@ -42,7 +44,7 @@ function introSpeech(region: RegionId): string {
   return `This is the ${r.label}. It's ${REGION_COMPASS[region]}. It has ${r.states.length} states. Let's meet them!`;
 }
 
-export function LearnScreen({ data, update, onHome, initialTour, onPlay }: Props) {
+export function LearnScreen({ data, update, onHome, initialTour, onPlay, onCounties }: Props) {
   const [mode, setMode] = useState<'explore' | 'tour'>(initialTour ? 'tour' : 'explore');
   const [tour, setTour] = useState<Tour | null>(() => (initialTour ? startTour(initialTour) : null));
   const [selected, setSelected] = useState<string | null>(null);
@@ -227,6 +229,15 @@ export function LearnScreen({ data, update, onHome, initialTour, onPlay }: Props
         >
           🏷️ Keep names on the map: {keepNames ? 'ON' : 'OFF'}
         </button>
+        {onCounties && info && (
+          <button
+            type="button"
+            onClick={() => onCounties(info.abbr)}
+            className="min-h-16 rounded-3xl bg-teal-600 px-5 text-xl font-extrabold text-white shadow-[0_4px_0_#115e59] transition active:translate-y-1"
+          >
+            🔎 Counties in {info.name}
+          </button>
+        )}
         {keepNames && kept.some((s) => s !== selected) && (
           <button
             type="button"

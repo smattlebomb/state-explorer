@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { button, click, render, type Rendered } from '../test/render';
 import { HomeScreen, findItIn } from './HomeScreen';
 import { emptyData, withSetting, type SavedData } from '../lib/storage';
+import { emptyLayerProgress } from '../lib/layerProgress';
 import type { StateRecord } from '../lib/srs';
 
 let view: Rendered | null = null;
@@ -110,5 +111,67 @@ describe('Home Test card', () => {
     const { container } = setup(data);
     expect(container.textContent).toContain('Find It 42/50');
     expect(container.textContent).toContain('Name It 30/50');
+  });
+});
+
+describe('Home map switcher (USA / Canada / World)', () => {
+  it('has three big layer buttons, with USA picked by default and all the US cards', () => {
+    const { container } = setup();
+    for (const label of ['USA map', 'Canada map', 'World map']) {
+      const b = button(container, label)!;
+      expect(b, label).toBeDefined();
+      expect(b.className).toContain('min-h-20');
+    }
+    expect(button(container, 'USA map')!.getAttribute('aria-pressed')).toBe('true');
+    expect(button(container, 'World map')!.getAttribute('aria-pressed')).toBe('false');
+    expect(button(container, /^📝Test/)).toBeDefined();
+    expect(button(container, 'Find It: Northeast (suggested)')).toBeDefined();
+  });
+
+  it('switching layer reports the choice', () => {
+    const onLayer = vi.fn();
+    view = render(<HomeScreen data={emptyData()} go={vi.fn()} onLayer={onLayer} />);
+    click(button(view.container, 'Canada map'));
+    expect(onLayer).toHaveBeenLastCalledWith('canada');
+    click(button(view.container, 'World map'));
+    expect(onLayer).toHaveBeenLastCalledWith('world');
+  });
+
+  it('the World home has its own big cards (Learn, Find It, Name It, Test, My Map) and no US cards', () => {
+    const go = vi.fn();
+    view = render(<HomeScreen data={emptyData()} go={go} layer="world" />);
+    const c = view.container;
+    expect(button(c, 'World map')!.getAttribute('aria-pressed')).toBe('true');
+    expect(button(c, 'Find It: Northeast (suggested)')).toBeUndefined();
+    expect(c.textContent).toContain('0 / 195');
+    for (const [label, screen] of [
+      ['World Learn', { name: 'world' }],
+      ['World Find It', { name: 'layer-setup', layer: 'world', kind: 'find' }],
+      ['World Name It', { name: 'layer-setup', layer: 'world', kind: 'name' }],
+      ['World Test', { name: 'layer-setup', layer: 'world', kind: 'test' }],
+      ['World My Map', { name: 'layer-progress', layer: 'world' }],
+    ] as const) {
+      const b = button(c, label)!;
+      expect(b, label).toBeDefined();
+      expect(b.className).toMatch(/min-h-(16|32)/);
+      click(b);
+      expect(go).toHaveBeenLastCalledWith(screen);
+    }
+  });
+
+  it('the Canada home shows Canada progress (not US) and opens Canada games', () => {
+    const go = vi.fn();
+    const progress = { ...emptyLayerProgress(), totalStars: 7, records: { PE: mastered, ON: mastered }, bestTests: { 'all|find': { correct: 12, total: 13 } } };
+    // US data has different stars: the Canada tab must show Canada's.
+    view = render(<HomeScreen data={{ ...emptyData(), totalStars: 99 }} go={go} layer="canada" layerProgress={progress} />);
+    const c = view.container;
+    expect(c.textContent).toContain('⭐ 7');
+    expect(c.textContent).not.toContain('99');
+    expect(c.textContent).toContain('2 / 13');
+    expect(c.textContent).toContain('Find It 12/13');
+    click(button(c, 'Canada Learn'));
+    expect(go).toHaveBeenLastCalledWith({ name: 'canada' });
+    click(button(c, 'Canada Test'));
+    expect(go).toHaveBeenLastCalledWith({ name: 'layer-setup', layer: 'canada', kind: 'test' });
   });
 });

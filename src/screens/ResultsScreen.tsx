@@ -12,8 +12,8 @@ import { speak } from '../lib/speech';
 import { soundFanfare } from '../lib/sound';
 import { bigCelebration } from '../lib/celebrate';
 
-const HEADLINES = { 3: 'Amazing!', 2: 'Great job!', 1: 'Nice try!' } as const;
-const HEADLINE_EMOJI = { 3: '🎉', 2: '🙌', 1: '💪' } as const;
+export const HEADLINES = { 3: 'Amazing!', 2: 'Great job!', 1: 'Nice try!' } as const;
+export const HEADLINE_EMOJI = { 3: '🎉', 2: '🙌', 1: '💪' } as const;
 
 interface Props {
   mode: QuizMode;
@@ -26,7 +26,7 @@ interface Props {
 }
 
 /** Stars drop in one at a time (~0.3s apart); earned ones spin in, the rest fade in grey. */
-function FlyingStars({ count }: { count: number }) {
+export function FlyingStars({ count }: { count: number }) {
   const reduce = useReducedMotion();
   return (
     <div className="flex justify-center gap-3 text-8xl" aria-label={`${count} of 3 stars`}>
@@ -48,7 +48,7 @@ function FlyingStars({ count }: { count: number }) {
   );
 }
 
-function Buttons({ onAgain, onOtherRegion, onHome, otherLabel = '🗺️ Other states' }: Pick<Props, 'onAgain' | 'onOtherRegion' | 'onHome'> & { otherLabel?: string }) {
+export function Buttons({ onAgain, onOtherRegion, onHome, otherLabel = '🗺️ Other states' }: Pick<Props, 'onAgain' | 'onOtherRegion' | 'onHome'> & { otherLabel?: string }) {
   return (
     <div className="mt-2 flex flex-wrap justify-center gap-4">
       <BigButton variant="success" className="min-h-20 min-w-64 text-4xl" onClick={onAgain}>
@@ -64,21 +64,22 @@ function Buttons({ onAgain, onOtherRegion, onHome, otherLabel = '🗺️ Other s
   );
 }
 
-function StateChips({ states, tone }: { states: string[]; tone: 'sparkle' | 'practice' }) {
+/** Tappable name chips (US states by default; World/Canada pass their own `nameOf`). */
+export function StateChips({ states, tone, nameOf = stateName }: { states: string[]; tone: 'sparkle' | 'practice'; nameOf?: (id: string) => string }) {
   return (
     <div className="mt-3 flex flex-wrap justify-center gap-2">
       {states.map((s, i) => (
         <motion.button
           key={s}
           type="button"
-          onClick={() => speak(stateName(s))}
+          onClick={() => speak(nameOf(s))}
           className={`min-h-14 rounded-2xl px-4 text-2xl font-extrabold ${tone === 'sparkle' ? 'bg-green-100 text-green-800 ring-2 ring-yellow-300' : 'bg-amber-100 text-amber-800'}`}
           initial={{ opacity: 0, scale: 0.6 }}
           animate={tone === 'sparkle' ? { opacity: 1, scale: [0.6, 1.15, 1] } : { opacity: 1, scale: 1 }}
           transition={{ delay: 1.1 + i * 0.12, duration: 0.4 }}
         >
           {tone === 'sparkle' && '✨ '}
-          {stateName(s)}
+          {nameOf(s)}
           {tone === 'sparkle' && ' ✨'}
         </motion.button>
       ))}

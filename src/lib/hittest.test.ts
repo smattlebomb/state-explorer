@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { distanceToShape, hitTest, pointInRings, type HitShape } from './hittest';
+import { distanceToShape, hitTest, hitTestMarkers, pointInRings, type HitShape } from './hittest';
 import { getMapGeometry } from './geo';
 
 const square = (id: string, x: number, y: number, s: number): HitShape => ({
@@ -92,5 +92,17 @@ describe('real map geometry', () => {
       expect(x1).toBeLessThanOrEqual(geo.width);
       expect(y1).toBeLessThanOrEqual(geo.height);
     }
+  });
+});
+
+describe('hitTestMarkers', () => {
+  it('picks the closest dot whose circle contains the point', () => {
+    const markers = [
+      { id: 'A', x: 0, y: 0, r: 5 },
+      { id: 'B', x: 6, y: 0, r: 5 },
+    ];
+    expect(hitTestMarkers([1, 0], markers)).toBe('A');
+    expect(hitTestMarkers([4, 0], markers)).toBe('B');
+    expect(hitTestMarkers([20, 0], markers)).toBeNull();
   });
 });
