@@ -19,6 +19,7 @@ import {
 import { regionFills } from '../lib/regionColors';
 import { SMALL_STATES } from '../data/states';
 import { CapitalDot, type CapitalMark } from './CapitalDot';
+import { ZOOM_CLUSTER_CLASS, ZOOM_WRAP_CLASS } from './zoomControls';
 
 export const COLORS = {
   land: '#fef3c7',
@@ -365,7 +366,7 @@ export function USMap({
   const atMax = zoom.k >= MAX_SCALE - 1e-6;
 
   return (
-    <div ref={wrapRef} className={`map-zoom-wrap relative h-full w-full ${className}`}>
+    <div ref={wrapRef} className={`${ZOOM_WRAP_CLASS} ${className}`}>
     <svg
       ref={svgRef}
       viewBox={viewBox}
@@ -487,7 +488,7 @@ export function USMap({
 
       {capital && <CapitalDot mark={capital} px={1.3} />}
     </svg>
-      <div className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2">
+      <div className={ZOOM_CLUSTER_CLASS}>
         <button
           type="button"
           aria-label="Zoom in"

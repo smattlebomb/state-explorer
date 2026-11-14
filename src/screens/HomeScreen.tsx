@@ -38,9 +38,11 @@ function SuggestionCard({ data, go }: { data: SavedData; go: (s: Screen) => void
       <div className="flex flex-wrap items-center justify-center gap-4">
         <div className="min-w-0 flex-1 text-center sm:text-left">
           <div className="text-lg font-bold text-slate-500">{id === 'all' ? '🏆 You mastered every region! Mix them all up:' : 'Practice next'}</div>
-          <div className="text-3xl font-black text-slate-800">
-            {region.emoji} {region.label}
-            <span className="ml-3 text-xl font-bold text-slate-500">
+          <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-0 sm:justify-start">
+            <span className="text-3xl font-black text-slate-800">
+              {region.emoji} {region.label}
+            </span>
+            <span className="whitespace-nowrap text-xl font-bold text-slate-500">
               🏆 {suggestedChoice.mastered} / {suggestedChoice.total}
             </span>
           </div>
@@ -59,21 +61,20 @@ function SuggestionCard({ data, go }: { data: SavedData; go: (s: Screen) => void
         <div className="mb-2 text-center text-xl font-extrabold text-slate-600 sm:text-left">
           Or pick a different region <span className="font-bold text-slate-500">· starts Find It · {flavor}</span>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 landscape:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {choices.map((c) => (
             <button
               key={c.id}
               type="button"
               aria-label={`Find It: ${c.label}`}
               onClick={() => go(findItIn(c.id, practice))}
-              className={`flex min-h-20 flex-col items-center justify-center rounded-3xl px-2 py-2 text-white shadow-[0_5px_0_rgba(0,0,0,0.25)] transition active:translate-y-1 active:shadow-none ${c.color} ${
+              className={`flex min-h-20 min-w-0 flex-col items-center justify-center rounded-3xl px-2 py-2 text-white shadow-[0_5px_0_rgba(0,0,0,0.25)] transition active:translate-y-1 active:shadow-none ${c.color} ${
                 c.suggested ? 'ring-4 ring-yellow-300' : ''
               }`}
             >
-              <span className="text-2xl font-black leading-tight">
-                {c.emoji} {c.label}
-              </span>
-              <span className="text-lg font-bold opacity-95">
+              <span className="text-2xl leading-none">{c.emoji}</span>
+              <span className="text-center text-xl font-black leading-tight sm:text-2xl">{c.label}</span>
+              <span className="whitespace-nowrap text-lg font-bold opacity-95">
                 🏆 {c.mastered} / {c.total}
               </span>
             </button>
@@ -93,7 +94,7 @@ const LAYERS: readonly { id: Layer; emoji: string; label: string; color: string 
 /** Big "which map?" switcher at the top of Home. */
 function LayerSwitcher({ layer, onLayer }: { layer: Layer; onLayer: (l: Layer) => void }) {
   return (
-    <div className="mt-4 grid w-full max-w-4xl grid-cols-3 gap-3" role="group" aria-label="Choose a map">
+    <div className="mt-4 grid w-full max-w-4xl grid-cols-3 gap-2 sm:gap-3" role="group" aria-label="Choose a map">
       {LAYERS.map((l) => {
         const on = l.id === layer;
         return (
@@ -103,11 +104,12 @@ function LayerSwitcher({ layer, onLayer }: { layer: Layer; onLayer: (l: Layer) =
             aria-pressed={on}
             aria-label={`${l.label} map`}
             onClick={() => onLayer(l.id)}
-            className={`flex min-h-20 items-center justify-center gap-2 rounded-3xl px-3 text-3xl font-black transition active:translate-y-1 active:shadow-none ${
+            className={`flex min-h-20 min-w-0 flex-col items-center justify-center gap-0.5 rounded-3xl px-1 py-2 text-xl font-black leading-tight transition active:translate-y-1 active:shadow-none sm:flex-row sm:gap-2 sm:px-3 sm:text-3xl ${
               on ? `${l.color} text-white ring-4 ring-yellow-300` : 'bg-white text-slate-700 shadow-[0_6px_0_#94a3b8]'
             }`}
           >
-            <span className="text-4xl">{l.emoji}</span> {l.label}
+            <span className="text-3xl leading-none sm:text-4xl">{l.emoji}</span>
+            <span>{l.label}</span>
           </button>
         );
       })}
@@ -139,7 +141,7 @@ function CapitalsCard({ layer, go, progress }: { layer: Layer; go: (s: Screen) =
       <p className="px-2 text-lg font-bold text-amber-800">
         Learn every capital, {info.things}. Capitals have their own stars and progress.
       </p>
-      <div className="mt-3 grid grid-cols-2 gap-3 landscape:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-3 min-[1100px]:grid-cols-4">
         <button type="button" aria-label={`${info.title}: Learn`} onClick={() => go({ name: 'capitals-learn', layer })} className={`${btn} bg-sky-500 text-white shadow-[0_6px_0_#0369a1]`}>
           <span className="text-2xl font-black">🔍 Learn</span>
           <span className="text-base font-bold opacity-90">Tap to see capitals</span>
@@ -275,7 +277,7 @@ export function HomeScreen({
 }) {
   if (layer !== 'usa') {
     return (
-      <main className="flex h-full flex-col items-center overflow-y-auto px-4 py-6">
+      <main className="flex h-full flex-col items-center overflow-y-auto px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.5rem,env(safe-area-inset-top))]">
         <h1 className="flex items-center justify-center gap-3 text-center text-5xl font-black tracking-tight text-sky-700 sm:text-6xl">
           <Mascot mood="idle" size={76} /> State Explorer
         </h1>
@@ -294,7 +296,7 @@ function UsaHome({ data, go, onLayer, capitals }: { data: SavedData; go: (s: Scr
   const mastered = ALL_ABBRS.filter((s) => masteryOf(data.records[s]) === 'mastered').length;
 
   return (
-    <main className="flex h-full flex-col items-center overflow-y-auto px-4 py-6">
+    <main className="flex h-full flex-col items-center overflow-y-auto px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.5rem,env(safe-area-inset-top))]">
       <h1 className="flex items-center justify-center gap-3 text-center text-5xl font-black tracking-tight text-sky-700 sm:text-6xl">
         <Mascot mood="idle" size={76} /> State Explorer
       </h1>

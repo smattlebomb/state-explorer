@@ -175,3 +175,31 @@ describe('Home map switcher (USA / Canada / World)', () => {
     expect(go).toHaveBeenLastCalledWith({ name: 'layer-setup', layer: 'canada', kind: 'test' });
   });
 });
+
+describe('Home layout (iPad)', () => {
+  it('region chips stay in at most 3 columns so names do not collide in landscape', () => {
+    const { container } = setup();
+    const section = container.querySelector('[aria-label="Practice next"]');
+    const grid = section!.querySelector('.grid');
+    expect(grid).toBeTruthy();
+    expect(grid!.className).toMatch(/grid-cols-2/);
+    expect(grid!.className).toMatch(/sm:grid-cols-3/);
+    expect(grid!.className).not.toMatch(/grid-cols-6/);
+    for (const b of grid!.querySelectorAll('button')) {
+      expect(b.className).toContain('min-h-20');
+      expect(b.className).toContain('min-w-0');
+    }
+  });
+
+  it('the map switcher buttons stay at least 64px tall and can shrink without overflowing the row', () => {
+    const { container } = setup();
+    const group = container.querySelector('[aria-label="Choose a map"]');
+    expect(group!.className).toMatch(/grid-cols-3/);
+    for (const label of ['USA map', 'Canada map', 'World map']) {
+      const b = button(container, label)!;
+      expect(b.className).toContain('min-h-20');
+      expect(b.className).toContain('min-w-0');
+      expect(b.className).toMatch(/flex-col/);
+    }
+  });
+});

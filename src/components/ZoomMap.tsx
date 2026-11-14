@@ -14,6 +14,7 @@ import {
   type ZoomState,
 } from '../lib/mapZoom';
 import type { Pt } from '../lib/hittest';
+import { ZOOM_CLUSTER_CLASS, ZOOM_WRAP_CLASS } from './zoomControls';
 
 /**
  * A pinch/pan/zoom SVG map shell for the World and Canada maps. It uses the
@@ -199,7 +200,7 @@ export function ZoomMap({ base, maxScale, onTap, ariaLabel, children, overlay, c
   const stop = (e: PointerEvent) => e.stopPropagation();
 
   return (
-    <div ref={wrapRef} className={`map-zoom-wrap relative h-full w-full ${className}`}>
+    <div ref={wrapRef} className={`${ZOOM_WRAP_CLASS} ${className}`}>
       <svg
         ref={svgRef}
         viewBox={formatViewBox(vis)}
@@ -216,7 +217,7 @@ export function ZoomMap({ base, maxScale, onTap, ariaLabel, children, overlay, c
         {children}
         {overlay?.(view)}
       </svg>
-      <div className="pointer-events-none absolute right-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2">
+      <div className={ZOOM_CLUSTER_CLASS}>
         <button type="button" aria-label="Zoom in" title="Zoom in" disabled={atMax} onPointerDown={stop} onClick={() => setZoom((z) => zoomIn(base, z, undefined, maxScale))} className={`${ZOOM_BUTTON} text-4xl`}>
           +
         </button>
