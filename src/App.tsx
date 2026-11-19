@@ -27,8 +27,11 @@ import {
   type GameLayer,
   type LayerProgress,
 } from './lib/layerProgress';
-import { loadMathData, mathWith, saveMathData, type MathData, type Subject } from './lib/mathStorage';
+import { bestQuizKey, loadMathData, mathWith, mathWithQuizScore, saveMathData, type MathData, type Subject } from './lib/mathStorage';
 import { TopBar } from './components/ui';
+import type { RoundKind, RoundSummary as MathSummary } from './lib/mathRound';
+import { factsForTables } from './lib/mathFacts';
+import { practiceSet } from './lib/mathMastery';
 
 // The World and Canada screens (and their map data) load on demand, in their own chunks,
 // so the US app's first download doesn't grow.
@@ -41,6 +44,10 @@ const LayerGameScreen = lazy(() => import('./screens/layerScreens').then((m) => 
 const LayerResultsScreen = lazy(() => import('./screens/layerScreens').then((m) => ({ default: m.LayerResultsScreen })));
 const LayerProgressScreen = lazy(() => import('./screens/layerScreens').then((m) => ({ default: m.LayerProgressScreen })));
 const CapitalsLearnScreen = lazy(() => import('./screens/layerScreens').then((m) => ({ default: m.CapitalsLearnScreen })));
+// Math: one lazy chunk for setup, play and results.
+const MathSetupScreen = lazy(() => import('./screens/mathScreens').then((m) => ({ default: m.MathSetupScreen })));
+const MathPlayScreen = lazy(() => import('./screens/mathScreens').then((m) => ({ default: m.MathPlayScreen })));
+const MathResultsScreen = lazy(() => import('./screens/mathScreens').then((m) => ({ default: m.MathResultsScreen })));
 
 /** Which map the Home screen is showing. USA is the default (and the full game). */
 export type Layer = 'usa' | 'canada' | 'world';
@@ -65,6 +72,8 @@ export type Screen =
   | { name: 'capitals-learn'; layer: AnyLayer }
   // Math (multiplication). Its data lives only in `state-explorer:math-mult:v1`.
   | { name: 'math-setup'; mode: 'practice' | 'quiz' }
+  | { name: 'math-play'; kind: RoundKind; ids: string[]; game: number }
+  | { name: 'math-results'; summary: MathSummary; newBest?: boolean }
   | { name: 'math-facts' };
 
 export type UpdateData = (fn: (d: SavedData) => SavedData) => void;
@@ -306,6 +315,53 @@ export default function App() {
       );
       break;
     case 'math-setup':
+      content = (
+        <Suspense fallback={<MapLoading text="Getting the cards…" />}>
+          <MathSetupScreen mode={screen.mode} math={math} updateMath={updateMath} onHome={home} onStart={(ids) => go({ name: 'math-play', kind: screen.mode, ids, game: Date.now() })} />
+        </Suspense>
+      );
+      break;
+    case 'math-play': {
+      const sc = screen;
+      content = (
+        <Suspense fallback={<MapLoading text="Getting the cards…" />}>
+          <MathPlayScreen
+            key={sc.game}
+            kind={sc.kind}
+            ids={sc.ids}
+            math={math}
+            updateMath={updateMath}
+            onHome={home}
+            onFinish={(summary) => {
+              // A finished quiz saves its best score (per length + answer mode).
+              let newBest = false;
+              if (summary.kind === 'quiz') {
+                const prev = math.bestQuizzes[bestQuizKey(math.quizLength, math.quizAnswerMode)];
+                newBest = summary.total > 0 && (!prev || summary.correct / summary.total > prev.correct / prev.total);
+                updateMath((m) => mathWithQuizScore(m, m.quizLength, m.quizAnswerMode, summary.correct, summary.total));
+              }
+              go({ name: 'math-results', summary, newBest });
+            }}
+          />
+        </Suspense>
+      );
+      break;
+    }
+    case 'math-results':
+      content = (
+        <Suspense fallback={<MapLoading text="Getting the cards…" />}>
+          <MathResultsScreen
+            summary={screen.summary}
+            newBest={screen.newBest}
+            math={math}
+            onRetryMissed={(ids) => go({ name: 'math-play', kind: 'practice', ids, game: Date.now() })}
+            onPracticeTables={() => go({ name: 'math-play', kind: 'practice', ids: practiceSet(factsForTables(math.tables, math.includeZero).map((f) => f.id), math.facts, Date.now()), game: Date.now() })}
+            onFacts={() => go({ name: 'math-facts' })}
+            onHome={home}
+          />
+        </Suspense>
+      );
+      break;
     case 'math-facts':
       // Filled in by the next phases.
       content = (

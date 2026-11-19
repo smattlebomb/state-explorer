@@ -279,12 +279,12 @@ export function SubjectSwitcher({ subject, onSubject }: { subject: Subject; onSu
             aria-pressed={on}
             aria-label={s.label}
             onClick={() => onSubject(s.id)}
-            className={`flex min-h-20 min-w-0 items-center justify-center gap-2 rounded-3xl px-2 py-2 text-2xl font-black leading-tight transition active:translate-y-1 active:shadow-none sm:gap-3 sm:text-3xl ${
+            className={`flex min-h-20 min-w-0 flex-col items-center justify-center gap-0.5 rounded-3xl px-2 py-2 text-xl font-black leading-tight transition active:translate-y-1 active:shadow-none min-[400px]:flex-row min-[400px]:gap-2 min-[400px]:text-2xl sm:gap-3 sm:text-3xl ${
               on ? `${s.color} text-white ring-4 ring-yellow-300` : 'bg-white text-slate-700 shadow-[0_6px_0_#94a3b8]'
             }`}
           >
             <span className="text-3xl leading-none sm:text-4xl">{s.emoji}</span>
-            <span className="min-w-0 truncate">{s.label}</span>
+            <span className="min-w-0">{s.label}</span>
           </button>
         );
       })}
@@ -301,7 +301,9 @@ function HomeShell({ subtitle, subject, onSubject, children }: { subtitle: strin
       </h1>
       <p className="mt-2 text-center text-2xl font-bold text-slate-600">{subtitle}</p>
       <SubjectSwitcher subject={subject} onSubject={onSubject} />
-      {children}
+      {/* shrink-0: in this fixed-height scrolling column, cards must keep their full height
+          (otherwise a tall card is squeezed and its text spills onto the next one on small phones). */}
+      <div className="flex w-full shrink-0 flex-col items-center">{children}</div>
     </main>
   );
 }

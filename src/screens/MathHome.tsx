@@ -28,9 +28,11 @@ export function MathHome({ go, math }: { go: (s: Screen) => void; math: MathData
   const mastered = Object.entries(math.facts).filter(([id, r]) => (math.includeZero || !/(^0x|x0$)/.test(id)) && masteryOf(r) === 'mastered').length;
   const bests = bestQuizSummary(math);
 
+  // shrink-0 wrapper: inside the fixed-height scrolling page, cards must never squash
+  // below their content (that is what made text spill over other cards on iPhone).
   return (
-    <>
-      <div className="mt-5 flex flex-wrap justify-center gap-3 text-2xl font-extrabold">
+    <div className="flex w-full max-w-4xl shrink-0 flex-col items-center">
+      <div className="mt-5 flex flex-wrap justify-center gap-3 text-xl font-extrabold sm:text-2xl">
         <span className="rounded-full bg-green-100 px-5 py-2 text-green-700">
           🌟 Mastered {mastered} of {total}
         </span>
@@ -45,12 +47,12 @@ export function MathHome({ go, math }: { go: (s: Screen) => void; math: MathData
         type="button"
         aria-label="Multiplication Flashcards: Practice"
         onClick={() => go({ name: 'math-setup', mode: 'practice' })}
-        className="mt-6 flex min-h-32 w-full max-w-4xl min-w-0 items-center gap-5 rounded-[2rem] bg-sky-500 px-6 py-5 text-left text-white shadow-[0_8px_0_#0369a1] transition active:translate-y-1.5 active:shadow-none"
+        className="mt-6 flex min-h-32 w-full min-w-0 items-center gap-4 sm:gap-5 rounded-[2rem] bg-sky-500 px-6 py-5 text-left text-white shadow-[0_8px_0_#0369a1] transition active:translate-y-1.5 active:shadow-none"
       >
-        <span className="text-6xl">✖️</span>
+        <span className="hidden shrink-0 text-5xl min-[400px]:inline sm:text-6xl">✖️</span>
         <span className="min-w-0">
-          <span className="block text-4xl font-black">Multiplication Flashcards</span>
-          <span className="block text-xl font-bold opacity-90">Practice facts up to 12 × 12. Flip the cards or use the number pad. No timer!</span>
+          <span className="block text-2xl font-black leading-tight min-[400px]:text-3xl sm:text-4xl">Multiplication Flashcards</span>
+          <span className="block text-lg font-bold opacity-90 sm:text-xl">Practice facts up to 12 × 12. Flip the cards or use the number pad. No timer!</span>
           <span className="mt-2 inline-block rounded-full bg-white/25 px-3 py-1 text-lg font-extrabold">Choose your tables ➜</span>
         </span>
       </button>
@@ -62,7 +64,7 @@ export function MathHome({ go, math }: { go: (s: Screen) => void; math: MathData
           onClick={() => go({ name: 'math-setup', mode: 'quiz' })}
           className="flex min-h-28 min-w-0 items-center gap-4 rounded-[2rem] bg-violet-500 px-6 py-5 text-left text-white shadow-[0_8px_0_#6d28d9] transition active:translate-y-1.5 active:shadow-none"
         >
-          <span className="text-5xl">🏆</span>
+          <span className="hidden shrink-0 text-5xl min-[400px]:inline">🏆</span>
           <span className="min-w-0">
             <span className="block text-3xl font-black">Quiz</span>
             <span className="block text-lg font-bold opacity-90">10, 20 or all your facts. See your score at the end.</span>
@@ -74,7 +76,7 @@ export function MathHome({ go, math }: { go: (s: Screen) => void; math: MathData
           onClick={() => go({ name: 'math-facts' })}
           className="flex min-h-28 min-w-0 items-center gap-4 rounded-[2rem] bg-orange-500 px-6 py-5 text-left text-white shadow-[0_8px_0_#c2410c] transition active:translate-y-1.5 active:shadow-none"
         >
-          <span className="text-5xl">🟩</span>
+          <span className="hidden shrink-0 text-5xl min-[400px]:inline">🟩</span>
           <span className="min-w-0">
             <span className="block text-3xl font-black">My Facts</span>
             <span className="block text-lg font-bold opacity-90">See which facts you know, from 1 × 1 to 12 × 12.</span>
@@ -94,6 +96,6 @@ export function MathHome({ go, math }: { go: (s: Screen) => void; math: MathData
       <p className="mt-4 max-w-2xl text-center text-lg font-bold text-slate-500">
         Math has its own progress, separate from geography. Take your time: there is no timer unless you turn one on.
       </p>
-    </>
+    </div>
   );
 }

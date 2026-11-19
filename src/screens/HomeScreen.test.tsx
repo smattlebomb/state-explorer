@@ -281,3 +281,18 @@ describe('Home subject switcher (Geography / Math)', () => {
     expect(view.container.textContent).toContain('Best 20: 18/20');
   });
 });
+
+describe('Home layout (phones)', () => {
+  it('home content sits in a non-shrinking column so tall cards never get squeezed into each other', () => {
+    for (const subject of ['geography', 'math'] as const) {
+      view = render(<HomeScreen data={emptyData()} go={vi.fn()} subject={subject} math={emptyMathData()} />);
+      const main = view.container.querySelector('main')!;
+      expect(main.className).toContain('env(safe-area-inset-bottom)');
+      const wrapper = main.querySelector(':scope > div.shrink-0');
+      expect(wrapper, subject).not.toBeNull();
+      expect(wrapper!.className).toContain('flex-col');
+      view.unmount();
+      view = null;
+    }
+  });
+});
