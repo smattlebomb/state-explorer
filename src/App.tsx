@@ -27,6 +27,8 @@ import {
   type GameLayer,
   type LayerProgress,
 } from './lib/layerProgress';
+import { loadMathData, mathWith, saveMathData, type MathData, type Subject } from './lib/mathStorage';
+import { TopBar } from './components/ui';
 
 // The World and Canada screens (and their map data) load on demand, in their own chunks,
 // so the US app's first download doesn't grow.
@@ -60,7 +62,10 @@ export type Screen =
   | { name: 'layer-quiz'; layer: AnyLayer; mode: QuizMode; scope: string; practice: boolean; test: boolean; game: number; kind?: GameKind }
   | { name: 'layer-results'; layer: AnyLayer; mode: QuizMode; scope: string; practice: boolean; test: boolean; summary: RoundSummary; kind?: GameKind }
   | { name: 'layer-progress'; layer: AnyLayer; game?: GameKind }
-  | { name: 'capitals-learn'; layer: AnyLayer };
+  | { name: 'capitals-learn'; layer: AnyLayer }
+  // Math (multiplication). Its data lives only in `state-explorer:math-mult:v1`.
+  | { name: 'math-setup'; mode: 'practice' | 'quiz' }
+  | { name: 'math-facts' };
 
 export type UpdateData = (fn: (d: SavedData) => SavedData) => void;
 
@@ -103,6 +108,16 @@ export default function App() {
   const store = (l: AnyLayer, game: GameKind = 'places'): [LayerProgress, (fn: (p: LayerProgress) => LayerProgress) => void] =>
     game === 'capitals' || l === 'usa' ? [capitalsData[l], (fn) => updateCapitals(l, fn)] : [layerData[l], (fn) => updateLayer(l, fn)];
 
+  // Math store (also remembers the last Home subject). Saved only when it changes.
+  const [math, setMath] = useState<MathData>(loadMathData);
+  const savedMath = useRef(math);
+  useEffect(() => {
+    if (math !== savedMath.current) saveMathData(math);
+    savedMath.current = math;
+  }, [math]);
+  const updateMath = useCallback((fn: (m: MathData) => MathData) => setMath((m) => fn(m)), []);
+  const setSubject = useCallback((s: Subject) => updateMath((m) => mathWith(m, 'subject', s)), [updateMath]);
+
   useEffect(() => saveData(data), [data]);
   useEffect(() => setSpeechEnabled(data.settings.narration), [data.settings.narration]);
   useEffect(() => setSoundEnabled(data.settings.sound), [data.settings.sound]);
@@ -118,7 +133,17 @@ export default function App() {
   switch (screen.name) {
     case 'home':
       content = (
-        <HomeScreen data={data} go={go} layer={layer} onLayer={setLayer} layerProgress={layer === 'usa' ? undefined : layerData[layer]} capitalsProgress={capitalsData[layer]} />
+        <HomeScreen
+          data={data}
+          go={go}
+          layer={layer}
+          onLayer={setLayer}
+          layerProgress={layer === 'usa' ? undefined : layerData[layer]}
+          capitalsProgress={capitalsData[layer]}
+          subject={math.subject}
+          onSubject={setSubject}
+          math={math}
+        />
       );
       break;
     case 'learn':
@@ -278,6 +303,18 @@ export default function App() {
         <Suspense fallback={<MapLoading />}>
           <CapitalsLearnScreen layer={screen.layer} settings={data.settings} onHome={home} />
         </Suspense>
+      );
+      break;
+    case 'math-setup':
+    case 'math-facts':
+      // Filled in by the next phases.
+      content = (
+        <main className="flex h-full flex-col">
+          <TopBar onHome={home}>
+            <h1 className="text-3xl font-black text-slate-800">🔢 Math</h1>
+          </TopBar>
+          <p className="p-8 text-center text-2xl font-bold text-slate-600">Coming soon!</p>
+        </main>
       );
       break;
     case 'canada':

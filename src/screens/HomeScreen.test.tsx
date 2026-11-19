@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
+import { emptyMathData, type Subject } from '../lib/mathStorage';
 import { button, click, render, type Rendered } from '../test/render';
 import { HomeScreen, findItIn } from './HomeScreen';
 import { emptyData, withSetting, type SavedData } from '../lib/storage';
@@ -201,5 +203,81 @@ describe('Home layout (iPad)', () => {
       expect(b.className).toContain('min-w-0');
       expect(b.className).toMatch(/flex-col/);
     }
+  });
+});
+
+describe('Home subject switcher (Geography / Math)', () => {
+  it('shows two big subject chips above the map switcher, with Geography picked by default', () => {
+    view = render(<HomeScreen data={emptyData()} go={vi.fn()} />);
+    const c = view.container;
+    const geo = button(c, 'Geography')!;
+    const math = button(c, 'Math')!;
+    expect(geo.getAttribute('aria-pressed')).toBe('true');
+    expect(math.getAttribute('aria-pressed')).toBe('false');
+    for (const b of [geo, math]) {
+      expect(b.className).toContain('min-h-20');
+      expect(b.className).toContain('min-w-0');
+      expect(b.className).toContain('rounded-3xl');
+    }
+    // Above the map switcher, and only two across.
+    const subjectGroup = c.querySelector('[aria-label="Choose a subject"]')!;
+    const mapGroup = c.querySelector('[aria-label="Choose a map"]')!;
+    expect(subjectGroup.compareDocumentPosition(mapGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(subjectGroup.className).toContain('grid-cols-2');
+    // Geography home is unchanged.
+    expect(button(c, 'Find It: Northeast (suggested)')).toBeDefined();
+    expect(button(c, /^📝Test/)).toBeDefined();
+  });
+
+  it('tapping Math reports the choice', () => {
+    const onSubject = vi.fn();
+    view = render(<HomeScreen data={emptyData()} go={vi.fn()} onSubject={onSubject} />);
+    click(button(view.container, 'Math'));
+    expect(onSubject).toHaveBeenCalledWith('math');
+  });
+
+  it('Math hides the map switcher and geography games and shows the Math home', () => {
+    const go = vi.fn();
+    view = render(<HomeScreen data={emptyData()} go={go} subject="math" math={emptyMathData()} />);
+    const c = view.container;
+    expect(button(c, 'Math')!.getAttribute('aria-pressed')).toBe('true');
+    expect(c.querySelector('[aria-label="Choose a map"]')).toBeNull();
+    expect(button(c, 'Find It: Northeast (suggested)')).toBeUndefined();
+    expect(button(c, /^📝Test/)).toBeUndefined();
+    expect(c.textContent).not.toContain('State Capitals');
+    expect(c.textContent).toContain('Multiplication Flashcards');
+    expect(c.textContent).toContain('Mastered 0 of 144');
+    click(button(c, 'Multiplication Flashcards: Practice'));
+    expect(go).toHaveBeenLastCalledWith({ name: 'math-setup', mode: 'practice' });
+    click(button(c, 'Multiplication Quiz'));
+    expect(go).toHaveBeenLastCalledWith({ name: 'math-setup', mode: 'quiz' });
+    click(button(c, 'My Facts'));
+    expect(go).toHaveBeenLastCalledWith({ name: 'math-facts' });
+    click(button(c, '⚙️ Settings'));
+    expect(go).toHaveBeenLastCalledWith({ name: 'settings' });
+  });
+
+  it('switching back to Geography restores the geography home', () => {
+    function Harness() {
+      const [subject, setSubject] = useState<Subject>('math');
+      return <HomeScreen data={emptyData()} go={vi.fn()} subject={subject} onSubject={setSubject} math={emptyMathData()} />;
+    }
+    view = render(<Harness />);
+    const c = view.container;
+    expect(c.textContent).toContain('Multiplication Flashcards');
+    click(button(c, 'Geography'));
+    expect(c.textContent).not.toContain('Multiplication Flashcards');
+    expect(c.querySelector('[aria-label="Choose a map"]')).not.toBeNull();
+    expect(button(c, 'Find It: Northeast (suggested)')).toBeDefined();
+    click(button(c, 'Math'));
+    expect(c.textContent).toContain('Multiplication Flashcards');
+  });
+
+  it('Math home shows best quiz scores and counts zeros only when they are on', () => {
+    const m = { streak: 3, correct: 3, wrong: 0, lastSeen: 0 };
+    const math = { ...emptyMathData(), includeZero: true, facts: { '3x4': m, '0x5': m }, bestQuizzes: { '20|keypad': { correct: 18, total: 20 } } };
+    view = render(<HomeScreen data={emptyData()} go={vi.fn()} subject="math" math={math} />);
+    expect(view.container.textContent).toContain('Mastered 2 of 169');
+    expect(view.container.textContent).toContain('Best 20: 18/20');
   });
 });

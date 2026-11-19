@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Layer, Screen } from '../App';
 import type { SavedData } from '../lib/storage';
 import { displayStreak, playedToday, toDayKey } from '../lib/streak';
@@ -8,6 +9,8 @@ import { regionChoices, suggestRegion } from '../lib/regionProgress';
 import { getRegion, type Region } from '../data/regions';
 import { BigButton } from '../components/ui';
 import { emptyLayerProgress, testKey, type LayerProgress } from '../lib/layerProgress';
+import { emptyMathData, type MathData, type Subject } from '../lib/mathStorage';
+import { MathHome } from './MathHome';
 
 const MODES = [
   { key: 'learn', emoji: '🔍', title: 'Learn', sub: 'Tap states to hear their names', next: null, color: 'bg-sky-500 shadow-[0_8px_0_#0369a1]' },
@@ -258,6 +261,51 @@ function OtherLayerHome({ layer, go, progress, capitals }: { layer: 'canada' | '
   );
 }
 
+const SUBJECTS: readonly { id: Subject; emoji: string; label: string; color: string }[] = [
+  { id: 'geography', emoji: '🌍', label: 'Geography', color: 'bg-emerald-600 shadow-[0_6px_0_#065f46]' },
+  { id: 'math', emoji: '🔢', label: 'Math', color: 'bg-violet-600 shadow-[0_6px_0_#4c1d95]' },
+];
+
+/** Two big subject chips at the very top of Home (same look as the map switcher). */
+export function SubjectSwitcher({ subject, onSubject }: { subject: Subject; onSubject: (s: Subject) => void }) {
+  return (
+    <div className="mt-4 grid w-full max-w-4xl grid-cols-2 gap-2 sm:gap-3" role="group" aria-label="Choose a subject">
+      {SUBJECTS.map((s) => {
+        const on = s.id === subject;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            aria-pressed={on}
+            aria-label={s.label}
+            onClick={() => onSubject(s.id)}
+            className={`flex min-h-20 min-w-0 items-center justify-center gap-2 rounded-3xl px-2 py-2 text-2xl font-black leading-tight transition active:translate-y-1 active:shadow-none sm:gap-3 sm:text-3xl ${
+              on ? `${s.color} text-white ring-4 ring-yellow-300` : 'bg-white text-slate-700 shadow-[0_6px_0_#94a3b8]'
+            }`}
+          >
+            <span className="text-3xl leading-none sm:text-4xl">{s.emoji}</span>
+            <span className="min-w-0 truncate">{s.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Title, subtitle and the subject switcher, inside a scrollable, safe-area-padded page. */
+function HomeShell({ subtitle, subject, onSubject, children }: { subtitle: string; subject: Subject; onSubject: (s: Subject) => void; children: ReactNode }) {
+  return (
+    <main className="flex h-full flex-col items-center overflow-y-auto px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.5rem,env(safe-area-inset-top))]">
+      <h1 className="flex items-center justify-center gap-3 text-center text-5xl font-black tracking-tight text-sky-700 sm:text-6xl">
+        <Mascot mood="idle" size={76} /> State Explorer
+      </h1>
+      <p className="mt-2 text-center text-2xl font-bold text-slate-600">{subtitle}</p>
+      <SubjectSwitcher subject={subject} onSubject={onSubject} />
+      {children}
+    </main>
+  );
+}
+
 export function HomeScreen({
   data,
   go,
@@ -265,6 +313,9 @@ export function HomeScreen({
   onLayer = () => {},
   layerProgress,
   capitalsProgress,
+  subject = 'geography',
+  onSubject = () => {},
+  math,
 }: {
   data: SavedData;
   go: (s: Screen) => void;
@@ -274,20 +325,31 @@ export function HomeScreen({
   layerProgress?: LayerProgress;
   /** Capitals progress for the active layer (its own store). */
   capitalsProgress?: LayerProgress;
+  /** Geography or Math (remembered in the math store). */
+  subject?: Subject;
+  onSubject?: (s: Subject) => void;
+  math?: MathData;
 }) {
-  if (layer !== 'usa') {
+  if (subject === 'math') {
     return (
-      <main className="flex h-full flex-col items-center overflow-y-auto px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.5rem,env(safe-area-inset-top))]">
-        <h1 className="flex items-center justify-center gap-3 text-center text-5xl font-black tracking-tight text-sky-700 sm:text-6xl">
-          <Mascot mood="idle" size={76} /> State Explorer
-        </h1>
-        <p className="mt-2 text-center text-2xl font-bold text-slate-600">{layer === 'canada' ? "Let's explore Canada!" : "Let's explore the world!"}</p>
-        <LayerSwitcher layer={layer} onLayer={onLayer} />
-        <OtherLayerHome layer={layer} go={go} progress={layerProgress ?? emptyLayerProgress()} capitals={capitalsProgress ?? emptyLayerProgress()} />
-      </main>
+      <HomeShell subtitle="Let's practice multiplication!" subject={subject} onSubject={onSubject}>
+        <MathHome go={go} math={math ?? emptyMathData()} />
+      </HomeShell>
     );
   }
-  return <UsaHome data={data} go={go} onLayer={onLayer} capitals={capitalsProgress ?? emptyLayerProgress()} />;
+  if (layer !== 'usa') {
+    return (
+      <HomeShell subtitle={layer === 'canada' ? "Let's explore Canada!" : "Let's explore the world!"} subject={subject} onSubject={onSubject}>
+        <LayerSwitcher layer={layer} onLayer={onLayer} />
+        <OtherLayerHome layer={layer} go={go} progress={layerProgress ?? emptyLayerProgress()} capitals={capitalsProgress ?? emptyLayerProgress()} />
+      </HomeShell>
+    );
+  }
+  return (
+    <HomeShell subtitle="Let's learn the 50 states!" subject={subject} onSubject={onSubject}>
+      <UsaHome data={data} go={go} onLayer={onLayer} capitals={capitalsProgress ?? emptyLayerProgress()} />
+    </HomeShell>
+  );
 }
 
 function UsaHome({ data, go, onLayer, capitals }: { data: SavedData; go: (s: Screen) => void; onLayer: (l: Layer) => void; capitals: LayerProgress }) {
@@ -296,11 +358,7 @@ function UsaHome({ data, go, onLayer, capitals }: { data: SavedData; go: (s: Scr
   const mastered = ALL_ABBRS.filter((s) => masteryOf(data.records[s]) === 'mastered').length;
 
   return (
-    <main className="flex h-full flex-col items-center overflow-y-auto px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1.5rem,env(safe-area-inset-top))]">
-      <h1 className="flex items-center justify-center gap-3 text-center text-5xl font-black tracking-tight text-sky-700 sm:text-6xl">
-        <Mascot mood="idle" size={76} /> State Explorer
-      </h1>
-      <p className="mt-2 text-center text-2xl font-bold text-slate-600">Let's learn the 50 states!</p>
+    <>
       <LayerSwitcher layer="usa" onLayer={onLayer} />
 
       <div className="mt-5 flex flex-wrap justify-center gap-3 text-2xl font-extrabold">
@@ -370,6 +428,6 @@ function UsaHome({ data, go, onLayer, capitals }: { data: SavedData; go: (s: Scr
           ⚙️ Settings
         </button>
       </div>
-    </main>
+    </>
   );
 }
