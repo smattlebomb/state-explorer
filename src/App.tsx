@@ -28,7 +28,6 @@ import {
   type LayerProgress,
 } from './lib/layerProgress';
 import { bestQuizKey, loadMathData, mathWith, mathWithQuizScore, saveMathData, type MathData, type Subject } from './lib/mathStorage';
-import { TopBar } from './components/ui';
 import type { RoundKind, RoundSummary as MathSummary } from './lib/mathRound';
 import { factsForTables } from './lib/mathFacts';
 import { practiceSet } from './lib/mathMastery';
@@ -48,6 +47,7 @@ const CapitalsLearnScreen = lazy(() => import('./screens/layerScreens').then((m)
 const MathSetupScreen = lazy(() => import('./screens/mathScreens').then((m) => ({ default: m.MathSetupScreen })));
 const MathPlayScreen = lazy(() => import('./screens/mathScreens').then((m) => ({ default: m.MathPlayScreen })));
 const MathResultsScreen = lazy(() => import('./screens/mathScreens').then((m) => ({ default: m.MathResultsScreen })));
+const MathFactsScreen = lazy(() => import('./screens/mathScreens').then((m) => ({ default: m.MathFactsScreen })));
 
 /** Which map the Home screen is showing. USA is the default (and the full game). */
 export type Layer = 'usa' | 'canada' | 'world';
@@ -172,7 +172,7 @@ export default function App() {
       content = <ProgressScreen data={data} update={update} onHome={home} />;
       break;
     case 'settings':
-      content = <SettingsScreen data={data} update={update} onHome={home} />;
+      content = <SettingsScreen data={data} update={update} onHome={home} math={math} updateMath={updateMath} />;
       break;
     case 'setup':
       content = <SetupScreen mode={screen.mode} data={data} update={update} onHome={home} onStart={(region, practice) => play(screen.mode, region, practice)} />;
@@ -363,14 +363,10 @@ export default function App() {
       );
       break;
     case 'math-facts':
-      // Filled in by the next phases.
       content = (
-        <main className="flex h-full flex-col">
-          <TopBar onHome={home}>
-            <h1 className="text-3xl font-black text-slate-800">🔢 Math</h1>
-          </TopBar>
-          <p className="p-8 text-center text-2xl font-bold text-slate-600">Coming soon!</p>
-        </main>
+        <Suspense fallback={<MapLoading text="Getting the cards…" />}>
+          <MathFactsScreen math={math} updateMath={updateMath} onHome={home} onPractice={() => go({ name: 'math-setup', mode: 'practice' })} />
+        </Suspense>
       );
       break;
     case 'canada':

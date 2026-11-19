@@ -22,7 +22,7 @@ export default defineConfig({
       manifest: {
         name: 'State Explorer',
         short_name: 'States',
-        description: 'Learn the 50 US states on a map!',
+        description: 'Learn geography (states, countries, capitals) and practice multiplication facts!',
         theme_color: '#0ea5e9',
         background_color: '#e0f2fe',
         display: 'standalone',

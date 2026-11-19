@@ -5,8 +5,22 @@ import { soundCorrect } from '../lib/sound';
 import { TopBar } from '../components/ui';
 import { Toggle } from '../components/Toggle';
 import { RegionLegend } from '../components/RegionLegend';
+import { mathWith, type MathData } from '../lib/mathStorage';
 
-export function SettingsScreen({ data, update, onHome }: { data: SavedData; update: UpdateData; onHome: () => void }) {
+export function SettingsScreen({
+  data,
+  update,
+  onHome,
+  math,
+  updateMath,
+}: {
+  data: SavedData;
+  update: UpdateData;
+  onHome: () => void;
+  /** Math settings live in the math store (state-explorer:math-mult:v1), not the geography save. */
+  math?: MathData;
+  updateMath?: (fn: (m: MathData) => MathData) => void;
+}) {
   const s = data.settings;
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => update((d) => withSetting(d, key, value));
 
@@ -60,7 +74,28 @@ export function SettingsScreen({ data, update, onHome }: { data: SavedData; upda
           checked={s.learnKeepNames}
           onChange={(on) => set('learnKeepNames', on)}
         />
-        <p className="pt-2 text-center text-lg font-semibold text-slate-500">To erase progress, go to 📊 My Map and hold the grown-ups button.</p>
+        {math && updateMath && (
+          <section className="mt-2 flex flex-col gap-4 rounded-[2rem] bg-violet-50 p-4" aria-label="Math settings">
+            <h2 className="text-2xl font-black text-violet-800">🔢 Math</h2>
+            <Toggle
+              emoji="0️⃣"
+              label="Include 0s"
+              sub="Add facts like 0 × 7 and 5 × 0 to flashcards, quizzes and My Facts"
+              checked={math.includeZero}
+              onChange={(on) => updateMath((m) => mathWith(m, 'includeZero', on))}
+            />
+            <Toggle
+              emoji="⏳"
+              label="Relaxed timer (quizzes)"
+              sub="A gentle 25-second bar on each quiz question. Off by default. If time runs out, we just show the answer, no penalty."
+              checked={math.relaxedTimer}
+              onChange={(on) => updateMath((m) => mathWith(m, 'relaxedTimer', on))}
+            />
+          </section>
+        )}
+        <p className="pt-2 text-center text-lg font-semibold text-slate-500">
+          To erase progress, go to 📊 My Map (geography) or 🟩 My Facts (math) and hold the grown-ups button.
+        </p>
       </div>
     </main>
   );

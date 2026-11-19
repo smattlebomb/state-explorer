@@ -1,16 +1,17 @@
 # Build status
 
-_Last updated: 2026-11-12_
+_Last updated: 2026-11-18_
 
-**Latest round (after Matt's iPad test):**
-- The home "Practice next" card has a **"Pick a different region"** chip row.
-- Learn mode has a **"Keep names on the map"** option.
+**Latest round (Math subject):**
+- Home has a top-level **🌍 Geography** / **🔢 Math** subject switcher. Geography is unchanged (USA / Canada / World and all existing games). The last subject is remembered in `state-explorer:math-mult:v1`.
+- Math ships **Multiplication Flashcards** (1×1 through 12×12, optional 0s off by default): Practice (flip or number pad), Quiz (10 / 20 / all, keypad or 4-choice), My Facts mastery grid, spaced repetition, retry of missed facts, and an optional relaxed 25s timer (off by default).
+- 386 tests passing across 35 files. `npm run build` passes.
 
-The previous round added Quiz vs. Practice, keep-names in Find It and Name It, region color coding, and game feel. Earlier rounds added hints, the region tour, the "practice next" suggestion, and per-region progress.
+The previous rounds added the world/Canada layers, capitals, Test mode, the home overlap fix, "Pick a different region", Learn "Keep names on the map", Quiz vs. Practice, region colors, and game feel.
 
 ## Verified
 
-- `npm test`: **143 tests passing** across 11 files. New this round:
+- `npm test`: **386 tests passing** across 35 files (2026-11-18). New in the Math round: `mathFacts`, `mathMastery`, `mathRound`, `mathStorage`, Home subject-switcher tests, Math practice/quiz/My Facts/Settings screen tests. Historical note for the 2026-11-12 round:
   - **Screen tests** (jsdom, rendering the real components and clicking real buttons):
     - `src/screens/HomeScreen.test.tsx`: the suggested region is still the big default button. The chip row has all 5 regions plus All 50 with emoji, region color and mastered counts. Each chip starts Find It for its region with the current Quiz/Practice setting. The Find It and Name It cards still go to the region choice screen and say "Choose your states ➜".
     - `src/screens/LearnScreen.test.tsx`:
@@ -36,7 +37,18 @@ The previous round added Quiz vs. Practice, keep-names in Find It and Name It, r
 
 ## What works (implemented)
 
-### New this round
+### New this round (2026-11-18) — Math
+- **Subject switcher** on Home: 🌍 Geography and 🔢 Math, large chips, `min-w-0`, wrapping, safe-area padding. Geography home (USA / Canada / World and all games) is unchanged aside from this switcher at the top. Opening Settings from Math returns to Math.
+- **Multiplication Flashcards:** tables 1–12 (multi-select + All), optional 0s (off by default).
+  - **Practice:** up to 12 facts, number pad or flip-to-reveal, gentle feedback, visual array on a miss, retry missed facts at the end. No timer.
+  - **Quiz:** 10 / 20 / all, keypad or 4-choice, first answer is official, score at the end, best score saved, retry missed after the graded set. Optional relaxed 25-second timer (Settings, off by default) treats a timeout like "not yet".
+  - **🟩 My Facts:** 12×12 grid (0–12 when zeros are on), colored and marked by mastery (★ / ● / ○ so it's not color-only). Tap a cell for the fact, product, and array. Grown-ups long-press reset erases only math progress.
+- **Mastery / SRS:** 3 first-try rights in a row = mastered; a miss resets the streak. Practice and Quiz both count. Selection weights missed and unseen facts higher.
+- **Storage:** only `state-explorer:math-mult:v1`. Geography keys untouched. Offline, no new network calls.
+- **Settings:** a Math section for Include 0s and Relaxed timer. Spoken narration and sound stay the existing global toggles (narration still off by default; `speak()` is a no-op when it's off).
+- **PWA:** manifest description broadened to mention geography and math; name, icons, start_url and scope unchanged.
+
+### Earlier: Home "Practice next" and Learn labels
 - **Home "Practice next" card:**
   - **Top row (unchanged):** the suggested region, with **🧭 Tour** and a big **👆 Find It** default button.
   - **New "Or pick a different region" row:** six chips, one for each of the 5 regions (emoji, region color, "🏆 mastered / total") plus **🇺🇸 All 50**.
@@ -182,6 +194,13 @@ J. **Screen tests use jsdom plus React's `act`**, with a ~60-line helper (`src/t
 
 ## Next steps / ideas
 
+- **Hands-on checklist (Math, 2026-11-18):**
+  - On Home, switch 🌍 Geography / 🔢 Math and confirm the last subject comes back after a reload.
+  - Practice with the number pad and with flip cards, including a miss (correct answer + dot array, then retry at the end).
+  - Take a 10-question quiz, check the score and that a best score appears on Math home.
+  - Try 4-choice mode, and turn on Include 0s to see the 0 row/column on My Facts.
+  - Confirm there is no timer unless Relaxed timer is turned on in Settings.
+  - Check Math home, a flashcard, quiz results, and My Facts in iPhone portrait and iPad landscape — nothing should overlap.
 - **Hands-on checklist:**
   - **New:** on Home, tap a chip in "Pick a different region" (for example 🌽 Midwest). It should start Find It there right away. Check the chip row fits nicely in portrait (3 across) and landscape (6 across).
   - **New:** in Learn, turn on "Keep names on the map", tap 10 or so neighboring states (try the Northeast), and check the names stay readable where they crowd together. Then use Clear names, and run a Region tour with it on.

@@ -2,3 +2,4 @@
 export { MathSetupScreen } from './MathSetupScreen';
 export { MathPlayScreen } from './MathPlayScreen';
 export { MathResultsScreen } from './MathResultsScreen';
+export { MathFactsScreen } from './MathFactsScreen';

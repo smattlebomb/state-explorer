@@ -1,6 +1,8 @@
 # 🗺️ State Explorer
 
-An iPad-first web app (PWA) that helps kids (about ages 6–10) learn to find the 50 US states on a blank map.
+An iPad-first web app (PWA) that helps kids (about ages 6–10) learn geography — the 50 US states, Canada, and the world — and practice mathematics, starting with multiplication facts through 12 × 12.
+
+The home screen has a top-level **🌍 Geography** / **🔢 Math** subject switcher. Geography is everything that was already in the app (USA, Canada, World, and all the map games). Math starts with Multiplication Flashcards. The last subject she picked is remembered (in its own storage key, separate from geography progress).
 
 - **Learn**: tap any state to see and hear its name. States you've explored stay lit up.
   - **🏷️ Keep names on the map** (a switch right on the Learn screen, also in Settings, **off by default**): when ON, every state she taps keeps its name on the map. The names build up as she explores, and the tiny Northeast states show theirs in their callout boxes. **🧹 Clear names** wipes them. When OFF, only the last state she tapped is labeled.
@@ -61,6 +63,22 @@ A big switcher at the top of Home picks the map. **USA** is the default and has 
 - **Loaded only when needed:** the World and Canada maps download the first time you open them, so the USA app doesn't get any bigger to start.
 
 Everything runs on the device: no backend, no accounts, no analytics, no ads, no external links. Progress is saved in the browser's `localStorage`. The map data (us-atlas) is bundled with the app, so it doesn't need the internet.
+
+
+## 🔢 Math
+
+The first Math activity is **Multiplication Flashcards**, for facts from 1 × 1 through 12 × 12 (144 facts). A setting can include 0s (0 × 0 through 12 × 0 and 0 × 12), **off by default**.
+
+- **Pick your tables:** multi-select chips for 1–12, plus **All**. A fact is included if at least one factor is in the selected set.
+- **Practice:** a short set of facts (up to 12). Two answer styles:
+  - **Number pad** (default): she types the product on a big on-screen keypad.
+  - **Flip the card:** tap to reveal the answer, then mark **I got it** or **Not yet**.
+- **Quiz:** 10, 20, or all selected facts. One official answer each, then a score at the end. Answer with the number pad or **4-choice** multiple choice. Best scores are saved (by length and answer mode).
+- **No timer by default.** An optional **relaxed timer** (25 seconds, in Settings) is a soft cue only. If time runs out, the app shows the answer gently — it is not a buzzer or a fail-by-default.
+- **On a miss:** supportive wording, the correct product, and a visual array (rows of dots / groups-of) so she can see what the fact means. Missed facts are retried at the end of the round; only the first answer counts toward mastery and the quiz score.
+- **🟩 My Facts:** a 1–12 × 1–12 grid colored and marked by mastery (★ mastered, ● learning, ○ new). Tap a square to see the fact, the product, and a tiny array. A grown-ups long-press can reset math progress without touching geography.
+- **Mastery:** 3 correct first answers in a row = mastered; a miss resets the streak. Practice and Quiz both count. Spaced repetition favors missed and new facts, with some review of mastered ones.
+- Math progress, table choices, the last subject, and best quiz scores live in `localStorage` under **`state-explorer:math-mult:v1`**. Existing geography keys are unchanged. Everything works offline.
 
 ## Live app
 
@@ -170,8 +188,10 @@ Which tint each state gets is worked out automatically from the real borders, so
 | Region colors | On | Colors states by region. Off = plain blank map |
 | Keep names on the map (Find It & Name It) | On | Correctly answered states stay labeled for the rest of the round. Also on the Quiz/Practice setup screen. |
 | Keep names on the map (Learn) | **Off** | Every state tapped in Learn (and in the region tour) keeps its name. Also a quick switch on the Learn screen. |
+| Include 0s (Math) | **Off** | Adds 0 × n and n × 0 facts to flashcards, quizzes, and My Facts. Saved in the math store. |
+| Relaxed timer (Math quizzes) | **Off** | A gentle 25-second bar on each quiz question. If time runs out, the answer is shown — no extra penalty. |
 
-The Quiz/Practice choice is remembered from the last time she picked it.
+The Quiz/Practice choice is remembered from the last time she picked it. Math table picks, answer style, quiz length, and last subject are remembered separately in the math store.
 
 ## Animations and reduced motion
 
@@ -209,11 +229,16 @@ src/
   lib/counties.ts     US counties: names (County/Parish/Borough/city), per-state shapes, tap dots, colors
   data/world.ts, data/canada.ts   countries, regions, capitals, provinces (see data/WORLD_NOTES.md, CANADA_NOTES.md)
   lib/speech.ts       Web Speech API read-aloud
+  lib/mathFacts.ts    multiplication facts 0–12 / 1–12, table filters
+  lib/mathMastery.ts  per-fact mastery + spaced repetition (own records)
+  lib/mathRound.ts    practice/quiz grading, retry queues, 4-choice distractors
+  lib/mathStorage.ts  state-explorer:math-mult:v1 load/save (subject + math progress)
   components/         USMap, ZoomMap (shared pinch/pan/zoom shell), WorldMap, Mascot (Ollie the owl), ShapeCard, RegionLegend, Toggle, buttons, long-press button
-  screens/            Home, Setup (Quiz/Practice + region), Learn (+ region tour), Quiz (Find It + Name It),
-                      Results, Progress, Settings, World, Canada, Counties,
+  screens/            Home (Geography / Math subject switcher), Setup (Quiz/Practice + region), Learn (+ region tour), Quiz (Find It + Name It),
+                      Results, Progress, Settings (includes a Math section), World, Canada, Counties,
                       Layer* (World/Canada games + capitals on all layers: setup, game, results, My Map),
-                      CapitalsLearn (+ screen tests)
+                      CapitalsLearn, MathHome, MathSetup, MathPlay, MathResults, MathFacts (+ screen tests)
+  components/math/    NumberPad, ArrayHint (visual groups-of for a missed fact)
   test/render.tsx     tiny jsdom render/click helpers for the screen tests
 scripts/
   make-icons.mjs      regenerates public/ icons (node scripts/make-icons.mjs)
