@@ -40,7 +40,8 @@ export function MathPlayScreen({ kind, ids, math, updateMath, onHome, onFinish }
   const [flipped, setFlipped] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [mood, setMood] = useState<{ mood: MascotMood; key: number }>({ mood: 'idle', key: 0 });
-  const [secondsLeft, setSecondsLeft] = useState(RELAXED_TIMER_SECONDS);
+  // The countdown belongs to one card, so a new card always starts with the full time.
+  const [timer, setTimer] = useState<{ card: string; left: number }>({ card: '', left: RELAXED_TIMER_SECONDS });
   const finished = useRef(false);
 
   const id = currentCard(round);
@@ -48,6 +49,8 @@ export function MathPlayScreen({ kind, ids, math, updateMath, onHome, onFinish }
   const answer = fact ? product(fact) : 0;
   const prog = roundProgress(round);
   const timed = quiz && math.relaxedTimer && round.phase === 'main';
+  const cardKey = `${round.phase}-${round.index}`;
+  const secondsLeft = timer.card === cardKey ? timer.left : RELAXED_TIMER_SECONDS;
   const choices = useMemo(() => (fact && style === 'choices' ? answerChoices(fact) : []), [id, round.phase, round.index, style]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // New card: clear the slate and (only if read-aloud is on) say the fact.
@@ -56,7 +59,6 @@ export function MathPlayScreen({ kind, ids, math, updateMath, onHome, onFinish }
     setTyped('');
     setFlipped(false);
     setMessage(null);
-    setSecondsLeft(RELAXED_TIMER_SECONDS);
     speak(spokenFact(fact));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round.phase, round.index]);
@@ -102,10 +104,10 @@ export function MathPlayScreen({ kind, ids, math, updateMath, onHome, onFinish }
       resolve(false, null, `Time's up, and that's okay! ${fact?.a} × ${fact?.b} = ${answer}.`);
       return;
     }
-    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    const t = setTimeout(() => setTimer({ card: cardKey, left: secondsLeft - 1 }), 1000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timed, secondsLeft, round.status]);
+  }, [timed, secondsLeft, round.status, cardKey]);
 
   const checkTyped = () => {
     if (!fact) return;
